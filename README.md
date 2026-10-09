@@ -109,6 +109,25 @@ Admin routes require `Authorization: Bearer <admin token>`:
 
 Request bodies are JSON and limited to 16 KB.
 
+## Frontend page map
+
+Everything lives on one page (`public/index.html`). The element IDs below are the handles for driving it by hand or from a browser automation tool:
+
+| Area | Elements |
+|---|---|
+| Search | `#q`, `#game`, results in `#players` (click a row to select a player) |
+| Profile header | `#name`, `#badge`, `#meta`; `#view` switches between combined, community and professional |
+| Tabs | sections `#profile`, `#compare`, `#history`, `#admin` |
+| Radar and scores | `svg#radar`, `#scores` |
+| Voting | `#panel`, sliders `#vstrategy`, `#vtactics`, `#vmicro`, `#vmacro`, `#vdecisions`, status in `#msg` |
+| Professional unlock | `#procode`; the token is kept in `localStorage.proAtlas` |
+| Leaderboard | `#metric`, `#category`, results in `#leaders` |
+| History | table in `#hist` |
+| Admin | `#adminkey`, totals in `#astats`, ratings in `#adminout`; the token is kept in `sessionStorage.adminAtlas` |
+| Connection status | `#conn`, reads "Connected" once the initial API calls succeed |
+
+A manual smoke test against a local run: the page loads with `#conn` on "Connected" and a radar for the demo player, and the console is clean. A community vote puts "Rating submitted." in `#msg` and raises the vote count in `#meta`; a second vote from the same browser returns "Already rated this player", so clear `localStorage.voterAtlas` to vote again. A panel with no ratings yet shows em dashes in `#scores` and draws no polygon — only the radar grid.
+
 ## Checks
 
 ```bash
