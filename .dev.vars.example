@@ -1,0 +1,3 @@
+# Copy to .dev.vars for local development (`npm run dev`). Never commit .dev.vars.
+ADMIN_KEY=use-a-long-unique-admin-key
+APP_SECRET=use-a-different-random-secret-at-least-32-characters

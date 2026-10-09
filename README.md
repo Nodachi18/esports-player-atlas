@@ -14,90 +14,109 @@ A lightweight full-stack esports player rating and scouting prototype. It collec
 - Leaderboard, player comparison, and rating history APIs
 - Admin login and protected admin endpoints
 - Professional invite-code flow
-- SQLite persistence with no third-party runtime packages
+- Runs on Cloudflare Workers + D1 (SQLite); fits the free plan at hobby-level traffic
+
+## Architecture
+
+| Path | Purpose |
+|---|---|
+| `public/` | Static frontend, served by Workers Assets (does not invoke the Worker) |
+| `src/worker.js` | API routes (`/api/*`), WebCrypto tokens, D1 queries |
+| `src/stats.js` | Pure aggregation and outlier logic (unit-tested) |
+| `migrations/` | D1 schema migrations |
+| `seed/demo.sql` | Demo player and invite code, **local only** |
+| `wrangler.jsonc` | Worker, assets, and D1 binding configuration |
+
+Aggregates are precomputed into the `player_stats` table whenever a rating is added or an admin flags/unflags one. Public reads (profiles, leaderboard, compare) only read that table, which keeps D1 "rows read" usage — the main free-tier limit — low.
 
 ## Requirements
 
-- Node.js **22.5 or newer** (`node:sqlite` is used)
-- Git (to clone or publish the repository)
+- Node.js **22 or newer** (for Wrangler)
+- A free Cloudflare account (for deployment only)
 
 ## Run locally
 
 ```bash
 git clone https://github.com/YOUR-USERNAME/esports-player-atlas.git
 cd esports-player-atlas
-cp .env.example .env
+npm install
+cp .dev.vars.example .dev.vars    # then edit the secrets
+npm run db:migrate:local
+npm run db:seed:local             # optional demo player + invite code PRO-DEMO-2026
+npm run dev
 ```
 
-Edit `.env` and set unique secrets. Then start the app:
+Open <http://localhost:8787>. The local D1 database lives in `.wrangler/` (git-ignored).
+
+`ADMIN_KEY` must be at least 16 characters and `APP_SECRET` at least 32. If either is missing, admin and professional routes return `503` instead of falling back to a default.
+
+## Run with Docker
+
+No local Node.js needed:
 
 ```bash
-npm start
+docker compose up --build
 ```
 
-Open <http://127.0.0.1:3000>.
+Open <http://localhost:8787>. On start the container applies migrations and seeds the demo player and invite code `PRO-DEMO-2026` (set `SEED_DEMO=false` to skip). The admin key defaults to `local-admin-key-change-me`; override `ADMIN_KEY` / `APP_SECRET` via your shell or a `.env` file next to `docker-compose.yml`.
 
-The current server reads environment variables directly; it does **not** automatically load `.env`. For a simple local run, set the variables in your shell instead:
+`src/`, `public/`, `migrations/` and `seed/` are mounted, so edits hot-reload. The database persists in the `atlas-data` volume; `docker compose down -v` resets it. This setup is for local development only.
 
-**PowerShell**
-
-```powershell
-$env:ADMIN_KEY="use-a-long-unique-admin-key"
-$env:APP_SECRET="use-a-different-random-secret-at-least-32-characters"
-$env:DEMO_PRO_CODE="change-this-before-first-run"
-npm start
-```
-
-**macOS / Linux**
+## Deploy to Cloudflare
 
 ```bash
-export ADMIN_KEY='use-a-long-unique-admin-key'
-export APP_SECRET='use-a-different-random-secret-at-least-32-characters'
-export DEMO_PRO_CODE='change-this-before-first-run'
-npm start
+npx wrangler login
+npx wrangler d1 create esports-player-atlas
 ```
 
-The database is created at `atlas.db` by default. Set `DB_FILE` to choose another path. The demo player and demo invite are seeded only when the database has no players. Set `DEMO_PRO_CODE` **before the first launch**; do not use the example invite code on a public deployment.
+Copy the printed `database_id` into `wrangler.jsonc`, then:
+
+```bash
+npm run db:migrate:remote
+npx wrangler secret put ADMIN_KEY
+npx wrangler secret put APP_SECRET
+npm run deploy
+```
+
+The app is served at `https://esports-player-atlas.<your-subdomain>.workers.dev`. A custom domain can be attached in the Cloudflare dashboard. Do **not** run `seed/demo.sql` against the remote database; create players and invites through the admin API instead.
+
+Apply new files in `migrations/` with `npm run db:migrate:remote` before deploying code that depends on them.
 
 ## API overview
-
-The API routes are implemented in `server.js`. Common routes include:
 
 | Method | Route | Purpose |
 |---|---|---|
 | `GET` | `/api/health` | Health check |
-| `GET` | `/api/players` | Search/list players |
+| `GET` | `/api/games` | Games with player counts |
+| `GET` | `/api/players?q=&game=` | Search/list players |
 | `GET` | `/api/players/:slug` | Player profile and aggregates |
-| `GET` | `/api/leaderboard` | Aggregate rankings |
-| `GET` | `/api/players-history?player=:slug` | Rating history |
-| `GET` | `/api/compare?players=slug1,slug2` | Compare players |
+| `GET` | `/api/leaderboard?metric=&category=` | Aggregate rankings (`metric`: combined, community, professional) |
+| `GET` | `/api/history?player=:slug` | Daily rating averages |
+| `GET` | `/api/compare?players=slug1,slug2` | Compare up to four players |
 | `POST` | `/api/ratings` | Submit a rating |
 | `POST` | `/api/pro/verify` | Exchange professional invite for a session token |
-| `POST` | `/api/admin/login` | Exchange admin key for an admin token |
+| `POST` | `/api/admin/login` | Exchange admin key for an admin token (8 h) |
 
-Admin routes require the admin authentication mechanism. Review `server.js` for exact request bodies and route details before building integrations.
+Admin routes require `Authorization: Bearer <admin token>`:
 
-## Publish to GitHub
+| Method | Route | Purpose |
+|---|---|---|
+| `GET` | `/api/admin/stats` | Totals and daily counts |
+| `GET` | `/api/admin/ratings` | Latest 1000 ratings |
+| `POST` | `/api/admin/players` | Create a player (`name`, `game`, optional `slug`, `real_name`, `faction`, `style`, `notes`) |
+| `POST` | `/api/admin/pro-invites` | Create an invite (optional `code`, `label`); returns the code once |
+| `POST` | `/api/admin/ratings/flag` | Set `flagged` on rating `id`; marks it reviewed so auto-flagging leaves it alone |
 
-1. Create an **empty repository** on GitHub named `esports-player-atlas`. Do not initialize it with a README or license because those already exist here.
-2. From this folder, run:
+Request bodies are JSON and limited to 16 KB.
 
-   ```bash
-   git init
-   git add .
-   git commit -m "Initial commit: Esports Player Atlas v3"
-   git branch -M main
-   git remote add origin https://github.com/YOUR-USERNAME/esports-player-atlas.git
-   git push -u origin main
-   ```
+## Checks
 
-3. Replace `YOUR-USERNAME` with your GitHub username. GitHub will prompt you to authenticate if needed.
+```bash
+npm test       # unit tests for aggregation and outlier logic
+npm run check  # syntax check + Wrangler dry-run build
+```
 
-Never commit `.env`, API secrets, database files, private voter data, or production data. `.gitignore` excludes common local secret and SQLite files.
-
-## GitHub Actions
-
-A basic workflow runs a syntax check when code is pushed or a pull request is opened. It does not yet run end-to-end or security tests.
+Never commit `.dev.vars`, API secrets, database files, private voter data, or production data. `.gitignore` excludes them.
 
 ## Statistical caveats
 
@@ -105,11 +124,10 @@ The current combined score gives the professional panel more weight than the com
 
 ## Before public production use
 
-- Replace SQLite with PostgreSQL if deploying multiple application instances
 - Add robust account-based voter identity and anti-bot protection; browser IDs are easy to reset
-- Verify professional identities and provide invite revocation
-- Add automated tests for vote deduplication, aggregation, authorization, and edge cases
-- Add HTTPS, deployment secrets, database backups, migrations, monitoring, and request limits
+- Verify professional identities
+- Add rate limiting (e.g. Cloudflare WAF rate-limiting rules) and D1 backups/Time Travel review
+- Add invite revocation and end-to-end tests against a local D1
 - Review privacy, data-retention, moderation, and appeal policies
 - Revisit the outlier methodology and minimum sample-size rules with real data
 

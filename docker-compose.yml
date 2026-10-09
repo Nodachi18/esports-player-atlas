@@ -1,0 +1,23 @@
+# Local playground: `docker compose up --build`, then open http://localhost:8787
+# Override secrets or disable the demo seed via environment variables or a .env file.
+services:
+  atlas:
+    build: .
+    ports:
+      - "8787:8787"
+    environment:
+      ADMIN_KEY: ${ADMIN_KEY:-local-admin-key-change-me}
+      APP_SECRET: ${APP_SECRET:-local-app-secret-change-me-0123456789}
+      SEED_DEMO: ${SEED_DEMO:-true}
+    volumes:
+      # Source is mounted so edits hot-reload without rebuilding the image.
+      - ./src:/app/src:ro
+      - ./public:/app/public:ro
+      - ./migrations:/app/migrations:ro
+      - ./seed:/app/seed:ro
+      - ./wrangler.jsonc:/app/wrangler.jsonc:ro
+      # Local D1 database, kept across restarts. `docker compose down -v` resets it.
+      - atlas-data:/data
+
+volumes:
+  atlas-data:

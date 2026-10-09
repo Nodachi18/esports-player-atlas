@@ -1,0 +1,18 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "esports-player-atlas",
+  "main": "src/worker.js",
+  "compatibility_date": "2026-09-01",
+  // Files in public/ are served directly without invoking the Worker (free, not counted as requests).
+  "assets": { "directory": "./public", "binding": "ASSETS" },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "esports-player-atlas",
+      // Replace with the id printed by `npx wrangler d1 create esports-player-atlas`.
+      "database_id": "00000000-0000-0000-0000-000000000000"
+    }
+  ],
+  "observability": { "enabled": true }
+  // Secrets (not stored here): ADMIN_KEY, APP_SECRET — set with `npx wrangler secret put <NAME>`.
+}

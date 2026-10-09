@@ -19,3 +19,7 @@ yarn-debug.log*
 Thumbs.db
 .vscode/
 .idea/
+
+# Cloudflare / Wrangler
+.dev.vars
+.wrangler/

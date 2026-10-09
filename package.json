@@ -1,1 +1,21 @@
-{"name":"esports-player-atlas","version":"3.0.0","private":true,"scripts":{"start":"node server.js"},"engines":{"node":">=22.5"}}
+{
+  "name": "esports-player-atlas",
+  "version": "4.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy",
+    "check": "node --check src/worker.js && node --check src/stats.js && wrangler deploy --dry-run --outdir .wrangler/dry-run",
+    "test": "node --test",
+    "db:migrate:local": "wrangler d1 migrations apply DB --local",
+    "db:migrate:remote": "wrangler d1 migrations apply DB --remote",
+    "db:seed:local": "wrangler d1 execute DB --local --file=seed/demo.sql"
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "devDependencies": {
+    "wrangler": "4.149.0"
+  }
+}
