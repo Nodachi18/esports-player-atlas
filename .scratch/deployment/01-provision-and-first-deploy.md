@@ -28,10 +28,12 @@ Done:
 Verified live: `www` serves the app, the API and our own `robots.txt`; the retired `app`
 hostname returns `404` for `/` and only Cloudflare's platform-level `robots.txt`.
 
-Follow-on: the real host is now known, so
-[accounts/03](../accounts/03-correct-deployed-redirect-uri.md) can be fixed —
-`https://www.esports-player-atlas.workers.dev/api/auth/discord/callback`. What is registered
-today is wrong on both counts, missing the worker name and the account subdomain.
+Follow-on: the real host is now known, so the redirect URI that sign-in will need is
+settled — `https://www.esports-player-atlas.workers.dev/api/auth/discord/callback`. The
+exploratory entry in the Discord portal is wrong on both counts, missing the worker name and
+the account subdomain. Registering it correctly is step 0 of
+[accounts/01](../accounts/01-discord-oauth-sign-in.md), not work of its own: there is no
+integration yet for a wrong URI to break.
 
 ---
 
@@ -71,9 +73,9 @@ Work through the checklist in [spec.md](spec.md). The one that matters most is r
 static asset directly — `/app/styles.css` — while signed out of Cloudflare. It must show the
 Access login. If the asset loads, the gate is not covering what you think it is.
 
-Then note the real `workers.dev` host and fix
-[accounts/03](../accounts/03-correct-deployed-redirect-uri.md), which is currently registered
-without the account subdomain and would fail on first sign-in.
+Then note the real `workers.dev` host and carry it into
+[accounts/01](../accounts/01-discord-oauth-sign-in.md), whose step 0 registers the redirect
+URI; the exploratory entry lacks the account subdomain and would fail on first sign-in.
 
 ## Do not
 

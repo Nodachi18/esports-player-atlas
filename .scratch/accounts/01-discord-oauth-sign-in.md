@@ -10,6 +10,45 @@ The app has no accounts. Roles are shared secrets: one `ADMIN_KEY`, one pro invi
 where every holder counts as a single rater, and a resettable `localStorage` voter id. The
 frontend already renders the signed-out shell and marks sign-in as planned.
 
+There is no Discord integration in the codebase at all — no routes, no secrets, no client.
+What exists is an unfinalized application in the developer portal, created to answer the
+research questions in
+[navigation-overhaul/05](../navigation-overhaul/issues/05-discord-portal-redirects.md). Its
+registered redirect URIs are exploratory leftovers and wrong for the deployed host; that is
+not a separate defect to fix, it is step 0 of this ticket. Nothing can break until there is
+a flow to break.
+
+## Step 0 — provision the application (human-only)
+
+Nobody but the account holder can do this part, and none of the code below can be tested
+without it.
+
+Redirect URIs match **exactly** — no wildcards, no host or path prefixes — so every origin
+the app is opened at must be registered in its own right. Register exactly these two, and
+remove whatever else is there:
+
+```
+https://www.esports-player-atlas.workers.dev/api/auth/discord/callback
+http://localhost:8787/api/auth/discord/callback
+```
+
+The deployed host is `<worker-name>.<account-subdomain>.workers.dev`; the Worker is named
+`www` (see `wrangler.jsonc`), hence the `www.` prefix that the exploratory entry was missing.
+Plain `http://localhost` is accepted by the portal and multiple URIs may coexist on one
+application — both confirmed in the portal on 2026-10-10.
+
+Then store the credentials. Never in this repo:
+
+| Secret | Local | Deployed |
+|---|---|---|
+| `DISCORD_CLIENT_ID` | `.dev.vars` | `npx wrangler secret put` |
+| `DISCORD_CLIENT_SECRET` | `.dev.vars` | `npx wrangler secret put` |
+| `DISCORD_REDIRECT_URI` | `.dev.vars` | `npx wrangler secret put` |
+
+`DISCORD_REDIRECT_URI` is configured, not derived from the request origin: deriving it means
+every origin the app is ever reachable at has to be registered separately, and a mismatch
+fails with `invalid_redirect_uri` at the worst moment.
+
 ## What to build
 
 Authorization-code grant with the Worker as a confidential client, so no PKCE.
@@ -25,15 +64,13 @@ Session is an `HttpOnly; Secure; SameSite=Lax; Path=/` cookie carrying exactly w
 `signToken()` already produces. Scope is `identify` only — no `email` — which keeps personal
 data out of D1.
 
-New secrets: `DISCORD_CLIENT_ID`, `DISCORD_CLIENT_SECRET`, `DISCORD_REDIRECT_URI`.
-
 Flip `ACCOUNTS_ENABLED` in `public/app/main.js` when this lands: it turns on the spec's
 target-state visibility, so Rate starts prompting and Account appears.
 
 ## Why it is ready-for-human
 
-The Discord application and its secrets can only be provisioned by the account holder. The
-code is straightforward once they exist.
+Step 0 can only be done by the account holder. The code is straightforward once the
+application and its secrets exist, and can be handed to an agent at that point.
 
 ## Watch out
 
@@ -46,6 +83,6 @@ and no more. That was the agreed bar.
 
 ## Done when
 
-A visitor signs in with Discord, is recognised on return, and signs out again; an Account row
-exists keyed on the snowflake; `ACCOUNTS_ENABLED` is true and the navigation matrix behaves
-as spec §3 describes.
+A visitor signs in with Discord **on the deployed origin, not just locally**, is recognised
+on return, and signs out again; an Account row exists keyed on the snowflake;
+`ACCOUNTS_ENABLED` is true and the navigation matrix behaves as spec §3 describes.
