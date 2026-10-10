@@ -109,24 +109,41 @@ Admin routes require `Authorization: Bearer <admin token>`:
 
 Request bodies are JSON and limited to 16 KB.
 
-## Frontend page map
+## Frontend
 
-Everything lives on one page (`public/index.html`). The element IDs below are the handles for driving it by hand or from a browser automation tool:
+`public/index.html` is an empty shell; everything is rendered in the browser from the API by
+ES modules under `public/app/`.
 
-| Area | Elements |
+| Module | Holds |
 |---|---|
-| Search | `#q`, `#game`, results in `#players` (click a row to select a player) |
-| Profile header | `#name`, `#badge`, `#meta`; `#view` switches between combined, community and professional |
-| Tabs | sections `#profile`, `#compare`, `#history`, `#admin` |
-| Radar and scores | `svg#radar`, `#scores` |
-| Voting | `#panel`, sliders `#vstrategy`, `#vtactics`, `#vmicro`, `#vmacro`, `#vdecisions`, status in `#msg` |
-| Professional unlock | `#procode`; the token is kept in `localStorage.proAtlas` |
-| Leaderboard | `#metric`, `#category`, results in `#leaders` |
-| History | table in `#hist` |
-| Admin | `#adminkey`, totals in `#astats`, ratings in `#adminout`; the token is kept in `sessionStorage.adminAtlas` |
-| Connection status | `#conn`, reads "Connected" once the initial API calls succeed |
+| `scores.js` | Per-category scores for a panel, and radar geometry |
+| `ranking.js` | Merging the leaderboard with the full player list, filtering, paging |
+| `nav.js` | Which navigation items a session sees, and in which of three states |
+| `state.js` | The one selection object, and its mapping to and from the query string |
+| `api.js` | The only module that calls `/api`; failures arrive as `ApiError` with a status |
+| `views.js` | HTML builders — pure string functions, no DOM access |
+| `main.js` | Wiring: owns the state, listens for events, paints the document |
 
-A manual smoke test against a local run: the page loads with `#conn` on "Connected" and a radar for the demo player, and the console is clean. A community vote puts "Rating submitted." in `#msg` and raises the vote count in `#meta`; a second vote from the same browser returns "Already rated this player", so clear `localStorage.voterAtlas` to vote again. A panel with no ratings yet shows em dashes in `#scores` and draws no polygon — only the radar grid.
+The first four are pure and unit-tested in `test/frontend.test.js`; `npm test` covers them
+alongside the aggregation logic.
+
+Pages are `Players`, `Leaderboard`, `Rate`, `Account` and `Admin`, selected by `?page=`.
+A player is `?player=<slug>`, a search `?q=`, the radar panel `?lens=`, and the leaderboard's
+own ranking `?metric=` and `?category=`. Client-side routing with real paths is deferred;
+`state.js` is the only module that would change when it lands.
+
+Two conventions worth knowing before editing:
+
+- **Role tint versus lens tint.** `--role` colours the chrome and says who you are; `--lens`
+  colours the data and says which panel you are reading. They are never the same job.
+- **`planned` means not built yet**, and nothing else. An item a role may not use is absent
+  from the DOM rather than dimmed.
+
+A manual smoke test: the page loads with a ranked strip and a radar, and the console is
+clean. Rating a player confirms, and a second attempt reports that you have already rated
+them. Switching the radar to a panel with no ratings shows em dashes and draws no polygon.
+Entering the admin key in the footer reveals the Admin item. `localStorage.voterAtlas`
+carries the browser-local voter id; clear it to rate again.
 
 ## Checks
 
