@@ -1,6 +1,10 @@
 {
   "$schema": "node_modules/wrangler/config-schema.json",
-  "name": "esports-player-atlas",
+  // The Worker's name, which is also its workers.dev hostname:
+  // <name>.<account subdomain>.workers.dev → www.esports-player-atlas.workers.dev
+  // Wrangler deploys by name, so changing this creates a second Worker rather than
+  // renaming the existing one. Rename in the dashboard first, then change it here.
+  "name": "www",
   // Which Cloudflare account to deploy into. An identifier, not a secret — it is recorded
   // here so the question does not come up on every deploy.
   "account_id": "877776dfd5a7c2cc7304cb6456115313",
@@ -18,6 +22,6 @@
     }
   ],
   "observability": { "enabled": true },
-  "workers_dev": false
+  "workers_dev": true
   // Secrets (not stored here): ADMIN_KEY, APP_SECRET — set with `npx wrangler secret put <NAME>`.
 }
