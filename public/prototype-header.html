@@ -461,6 +461,64 @@ a { color: inherit; text-decoration: none; }
 .radar .vvalue { font-family: var(--cond); font-weight: 700; font-size: 20px; fill: var(--lens); }
 .emptyline { color: var(--mute); font-size: 13px; text-align: center; padding: 0 0 12px; }
 
+/* ---------- leaderboard ---------- */
+
+.lbcontrols { display: flex; gap: 10px; align-items: center; margin-bottom: 14px; flex-wrap: wrap; }
+.lbcontrols label { font-size: 11px; letter-spacing: .09em; text-transform: uppercase; color: var(--mute); }
+.sel {
+  background: var(--sunk); color: var(--ink); border: 1px solid var(--line);
+  border-radius: 3px; padding: 8px 10px; font: 500 14px var(--sans);
+}
+.lbrow {
+  display: grid; grid-template-columns: 44px 1fr auto; align-items: center; gap: 12px;
+  width: 100%; text-align: left; background: none; border: 0;
+  border-bottom: 1px solid var(--line-dim); padding: 11px 8px; cursor: pointer; color: inherit;
+}
+.lbrow:hover { background: var(--panel); }
+.lbrow[data-on='1'] { background: var(--sunk); box-shadow: inset 3px 0 0 var(--role); }
+.lbrow .n { font-family: var(--cond); font-weight: 700; font-size: 20px; color: var(--mute); }
+.lbrow .who { font-family: var(--cond); font-weight: 600; font-size: 19px; letter-spacing: .03em; }
+.lbrow .who small { display: block; font-family: var(--sans); font-weight: 400; font-size: 11px; letter-spacing: 0; color: var(--mute); }
+.lbrow .v { font-family: var(--cond); font-weight: 700; font-size: 23px; color: var(--lens); }
+
+/* ---------- rate ---------- */
+
+.rateform { max-width: 620px; }
+.slider { background: var(--panel); border: 1px solid var(--line); border-radius: 3px; padding: 11px 14px; margin-bottom: 9px; }
+.slider .top { display: flex; justify-content: space-between; align-items: baseline; }
+.slider .k { font-size: 11px; letter-spacing: .1em; text-transform: uppercase; color: var(--mute); }
+.slider .out { font-family: var(--cond); font-weight: 700; font-size: 22px; color: var(--lens); }
+.slider input { width: 100%; margin: 6px 0 0; accent-color: var(--role); }
+.btn {
+  background: var(--role); color: var(--void); border: 0; border-radius: 3px;
+  font: 700 15px var(--cond); letter-spacing: .05em; padding: 11px 20px; cursor: pointer;
+}
+.btn.ghost { background: none; border: 1px solid var(--line); color: var(--ink); font-weight: 600; }
+.result { margin-top: 13px; padding: 12px 14px; border-radius: 3px; border: 1px solid var(--line); border-left-width: 3px; font-size: 14px; }
+.result.ok { border-left-color: #6fd08c; }
+.result.dupe { border-left-color: var(--admin); }
+.result.bad { border-left-color: #ff7a7a; }
+.result code { font-family: ui-monospace, monospace; font-size: 12px; color: var(--mute); }
+
+/* ---------- admin ---------- */
+
+.statgrid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; margin-bottom: 16px; }
+.stat { background: var(--panel); border: 1px solid var(--line); border-radius: 4px; padding: 14px 16px; }
+.stat b { display: block; font-family: var(--cond); font-weight: 700; font-size: 31px; color: var(--admin); line-height: 1; }
+.stat span { font-size: 11px; letter-spacing: .09em; text-transform: uppercase; color: var(--mute); }
+
+/* ---------- footer admin door ---------- */
+
+.adminbox { display: flex; align-items: center; gap: 8px; margin-left: auto; }
+.adminbox input {
+  background: var(--sunk); border: 1px solid var(--line); color: var(--ink);
+  border-radius: 3px; padding: 6px 10px; font: 400 13px var(--sans); width: 170px;
+}
+.adminbox input:focus { border-color: var(--admin); outline: none; }
+.adminbox .mini { background: none; border: 1px solid var(--line); color: var(--mute); border-radius: 3px; padding: 6px 10px; font: 600 12px var(--sans); cursor: pointer; }
+.adminbox .mini:hover { color: var(--ink); border-color: var(--admin); }
+.adminerr { color: #ff9b9b; font-size: 12px; }
+
 .pageholder {
   border: 1px dashed var(--line);
   border-radius: 4px;
@@ -602,6 +660,11 @@ let page = params.get('page') || 'players';
 let slug = params.get('player') || '';   // empty: fall back to the top-ranked player
 let query = params.get('q') || '';
 let rankPage = 0;
+let metric = params.get('metric') || 'combined';
+let category = params.get('category') || '';
+let adminToken = sessionStorage.protoAdmin || '';   // real token from /api/admin/login
+let adminMsg = '';
+let rateResult = null;
 if (!VARIANTS[variant]) variant = 'A';
 if (!STATES[state]) state = 'anon';
 if (!LENSES[lens]) lens = 'combined';
@@ -619,8 +682,8 @@ function navItems(s) {
     { key: 'rate',        label: 'Rate',        show: true, signin: !signedIn },
     // decision 11: Profile always means your own account; hidden without one
     { key: 'account',     label: 'Account',     show: signedIn },
-    // decision 3: admin is still the key, orthogonal to accounts
-    { key: 'admin',       label: 'Admin',       show: !!st.adminKey },
+    // decision 3 + 19: admin is still the key, orthogonal to accounts; the footer is the door
+    { key: 'admin',       label: 'Admin',       show: !!st.adminKey || !!adminToken },
   ].filter(i => i.show);
 }
 
@@ -684,7 +747,86 @@ function footerHTML() {
   const links = FOOTER.map(f =>
     `<a href="#" class="${f.planned ? 'planned' : ''}" ${f.planned ? 'aria-disabled="true" tabindex="-1"' : ''}>${f.label}${f.planned ? '<span class="plannedtag">planned</span>' : ''}</a>`
   ).join('');
-  return `<footer class="sitefoot">${links}<span class="spacer">Prototype — Esports Player Atlas</span></footer>`;
+  return `<footer class="sitefoot">${links}${adminDoorHTML()}</footer>`;
+}
+
+// Interim per spec §11: the footer is the door, the Admin page is the room.
+function adminDoorHTML() {
+  if (adminToken) {
+    return `<span class="adminbox">
+      <span class="keypill">Signed in as admin</span>
+      <button class="mini" type="button" data-admin-drop>Drop token</button>
+    </span>`;
+  }
+  return `<span class="adminbox">
+    ${adminMsg ? `<span class="adminerr">${esc(adminMsg)}</span>` : ''}
+    <input type="password" id="adminkey" placeholder="Admin key" autocomplete="off">
+    <button class="mini" type="button" data-admin-login>Sign in as admin</button>
+  </span>`;
+}
+
+async function adminLogin() {
+  const field = document.getElementById('adminkey');
+  const key = field ? field.value : '';
+  adminMsg = '';
+  try {
+    const r = await fetch('/api/admin/login', {
+      method: 'POST', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ key }),
+    });
+    const j = await r.json();
+    if (!r.ok) throw Error(j.error || 'Rejected');
+    adminToken = j.token;
+    sessionStorage.protoAdmin = adminToken;   // key itself is never stored
+    page = 'admin';
+    render();
+    loadAdminStats();
+  } catch (e) {
+    adminMsg = e.message;
+    render();
+  }
+}
+
+function loadAdminStats() {
+  return fetch('/api/admin/stats', { headers: { authorization: 'Bearer ' + adminToken } })
+    .then(r => r.json())
+    .then(j => { data.adminStats = j; render(); })
+    .catch(() => {});
+}
+
+async function submitRating() {
+  const p = selected();
+  const panelEl = document.getElementById('rate-panel');
+  const panel = panelEl ? panelEl.value : 'community';
+  const body = { player: p.slug, panel };
+  for (const c of CATS) body[c] = Number(document.getElementById('r-' + c).value);
+  if (panel === 'community') {
+    body.voter = localStorage.protoVoter || (localStorage.protoVoter = 'proto-' + crypto.randomUUID() + crypto.randomUUID());
+  }
+  // professional deliberately sends no token: the 401 is a state the spec requires us to show
+  const r = await fetch('/api/ratings', {
+    method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body),
+  });
+  const j = await r.json().catch(() => ({}));
+  rateResult =
+    r.status === 201 ? { kind: 'ok',   status: 201, text: 'Rating accepted. The radar below is redrawn from the response, not refetched.' }
+  : r.status === 409 ? { kind: 'dupe', status: 409, text: 'Already rated this player on this panel. Expected on a second attempt — not an error.' }
+  : r.status === 401 ? { kind: 'bad',  status: 401, text: 'Professional rating needs professional access, which does not exist until accounts land.' }
+  : r.status === 404 ? { kind: 'bad',  status: 404, text: 'Unknown or inactive player.' }
+  :                    { kind: 'bad',  status: r.status, text: j.error || 'Rejected.' };
+
+  if (r.status === 201 && j.player) {
+    const i = data.ranked.findIndex(x => x.slug === j.player.slug);
+    if (i > -1) data.ranked[i] = { ...data.ranked[i], ...j.player };   // re-render from the response
+  }
+  render();
+}
+
+function loadBoard() {
+  return fetch(`/api/leaderboard?metric=${metric}&category=${category}`)
+    .then(r => r.json())
+    .then(j => { data.board = j.players || []; render(); })
+    .catch(() => {});
 }
 
 const PER_PAGE = 5;
@@ -734,11 +876,98 @@ function stripHTML() {
 
 // One content area. The primary nav swaps what renders inside it.
 function pageHTML(s) {
-  if (page !== 'players') {
-    const name = { leaderboard: 'Leaderboard', rate: 'Rate', account: 'Account', admin: 'Admin' }[page] || page;
-    return `<div class="pageholder"><b>${name}</b>Not built yet. The prototype only shows that the content area changes with the main navigation.</div>`;
-  }
-  return playersHTML(s);
+  const inner =
+    page === 'players'     ? playersHTML(s)
+  : page === 'leaderboard' ? leaderboardHTML()
+  : page === 'rate'        ? rateHTML(s)
+  : page === 'admin'       ? adminHTML()
+  : `<div class="pageholder"><b>Account</b>Planned. It needs accounts, which are not built yet.</div>`;
+  return `<div class="body-wrap">${inner}${footerHTML()}</div>`;
+}
+
+// ---- Leaderboard: parity with GET /api/leaderboard?metric=&category= ----
+
+const METRICS = { combined: 'Combined', community: 'Community', professional: 'Professionals' };
+const CATEGORY_LABELS = { '': 'Overall', strategy: 'strategy', tactics: 'tactics', micro: 'micro', macro: 'macro', decisions: 'decisions' };
+
+function leaderboardHTML() {
+  const rows = (data.board || []).map((p, i) => `
+    <button class="lbrow" type="button" data-slug="${esc(p.slug)}" data-goto="players" data-on="${p.slug === slug ? 1 : 0}">
+      <span class="n">${i + 1}</span>
+      <span class="who">${esc(p.name)}<small>${esc(p.game)} · ${esc(p.faction)}</small></span>
+      <span class="v">${Math.round(p.value)}</span>
+    </button>`).join('');
+
+  return `
+    <div class="lbcontrols">
+      <label for="lb-metric">Panel</label>
+      <select class="sel" id="lb-metric" data-control="metric">
+        ${Object.entries(METRICS).map(([k, v]) => `<option value="${k}"${k === metric ? ' selected' : ''}>${v}</option>`).join('')}
+      </select>
+      <label for="lb-category">Category</label>
+      <select class="sel" id="lb-category" data-control="category">
+        ${Object.entries(CATEGORY_LABELS).map(([k, v]) => `<option value="${k}"${k === category ? ' selected' : ''}>${v}</option>`).join('')}
+      </select>
+      <span class="rankpos">${(data.board || []).length} ranked${category ? ' by ' + category : ' overall'}</span>
+    </div>
+    ${rows || '<p class="rankempty">No scored players yet.</p>'}
+    <p class="emptyline" style="text-align:left;padding-top:14px">
+      Unrated players never appear here — the route drops them. See spec §15.
+    </p>
+    <div class="pageholder" style="margin-top:18px">
+      <b>Compare <span class="plannedtag">planned</span></b>
+      /api/compare takes up to four players and works today, but no UI has ever called it.
+    </div>`;
+}
+
+// ---- Rate: parity with POST /api/ratings ----
+
+function rateHTML(s) {
+  const p = selected();
+  if (!p) return `<div class="pageholder"><b>No player selected</b>Pick someone on Players first — there is nothing to rate.</div>`;
+
+  const sliders = CATS.map(c => `
+    <div class="slider">
+      <div class="top"><span class="k">${c}</span><span class="out" id="out-${c}">75</span></div>
+      <input type="range" min="0" max="100" value="75" id="r-${c}" data-slider="${c}">
+    </div>`).join('');
+
+  const r = rateResult;
+  const res = !r ? '' : `<div class="result ${r.kind}">${r.text}${r.status ? ` <code>HTTP ${r.status}</code>` : ''}</div>`;
+
+  return `
+    <h1 style="font-family:var(--cond);font-weight:700;font-size:38px;margin:0 0 4px">Rate ${esc(p.name)}</h1>
+    <p class="idreal" style="margin:0 0 18px">${esc(p.real_name || '')}${p.real_name ? ' · ' : ''}${esc(p.game)} · carried over from Players</p>
+    <div class="rateform">
+      <div class="lbcontrols">
+        <label for="rate-panel">Panel</label>
+        <select class="sel" id="rate-panel" data-control="ratepanel">
+          <option value="community">Community</option>
+          <option value="professional">Professional</option>
+        </select>
+      </div>
+      ${sliders}
+      <button class="btn" type="button" data-rate-submit>Submit rating</button>
+      ${res}
+    </div>`;
+}
+
+// ---- Admin: re-hosted unchanged, entered from the footer ----
+
+function adminHTML() {
+  if (!adminToken) return `<div class="pageholder"><b>Admin</b>Enter the admin key in the footer to open this.</div>`;
+  const t = data.adminStats && data.adminStats.totals;
+  if (!t) return `<div class="pageholder"><b>Admin</b>Loading…</div>`;
+  return `
+    <div class="statgrid">
+      <div class="stat"><b>${t.players || 0}</b><span>players</span></div>
+      <div class="stat"><b>${t.ratings || 0}</b><span>ratings</span></div>
+      <div class="stat"><b>${t.flagged || 0}</b><span>flagged</span></div>
+    </div>
+    <p class="emptyline" style="text-align:left">
+      Re-hosted unchanged inside the content area. Creating players, promoting accounts and
+      moderating ratings live here.
+    </p>`;
 }
 
 function playersHTML(s) {
@@ -806,7 +1035,7 @@ function playersHTML(s) {
      </div>`
   ).join('');
 
-  return `<div class="body-wrap">
+  return `
     ${notice}
     <div class="rankbar" id="strip">${stripHTML()}</div>
     <div class="profile">
@@ -837,9 +1066,7 @@ function playersHTML(s) {
         </svg>
         ${anyVal ? '' : `<p class="emptyline">No ratings in this panel yet.</p>`}
       </section>
-    </div>
-    ${footerHTML()}
-  </div>`;
+    </div>`;
 }
 
 function render() {
@@ -905,6 +1132,8 @@ function syncUrl() {
   u.searchParams.set('page', page);
   if (cur) u.searchParams.set('player', cur.slug); else u.searchParams.delete('player');
   if (query) u.searchParams.set('q', query); else u.searchParams.delete('q');
+  u.searchParams.set('metric', metric);
+  if (category) u.searchParams.set('category', category); else u.searchParams.delete('category');
   history.replaceState(null, '', u);
 }
 
@@ -926,17 +1155,51 @@ document.getElementById('app').addEventListener('click', e => {
   if (l) { lens = l.dataset.lens; return render(); }
 
   const nav = e.target.closest('[data-page]');
-  if (nav) { page = nav.dataset.page; return render(); }
+  if (nav) {
+    page = nav.dataset.page;
+    rateResult = null;
+    render();
+    if (page === 'leaderboard') loadBoard();
+    if (page === 'admin' && adminToken && !data.adminStats) loadAdminStats();
+    return;
+  }
+
+  if (e.target.closest('[data-admin-login]')) return adminLogin();
+  if (e.target.closest('[data-admin-drop]')) {
+    adminToken = ''; delete sessionStorage.protoAdmin; data.adminStats = null;
+    if (page === 'admin') page = 'players';
+    return render();
+  }
+  if (e.target.closest('[data-rate-submit]')) return submitRating();
 
   const pager = e.target.closest('[data-rank]');
   if (pager) { rankPage += pager.dataset.rank === 'next' ? 1 : -1; return renderStrip(); }
 
   const pick = e.target.closest('[data-slug]');
-  if (pick) { slug = pick.dataset.slug; return render(); }
+  if (pick) {
+    slug = pick.dataset.slug;
+    // a leaderboard row sets the player context and hands over to Players
+    if (pick.dataset.goto) page = pick.dataset.goto;
+    return render();
+  }
+});
+
+// leaderboard selects
+document.getElementById('app').addEventListener('change', e => {
+  const c = e.target.dataset.control;
+  if (c === 'metric') { metric = e.target.value; loadBoard(); }
+  if (c === 'category') { category = e.target.value; loadBoard(); }
 });
 
 // Typing filters the strip in place, so the search field keeps focus and caret.
 document.getElementById('app').addEventListener('input', e => {
+  // sliders update their readout in place; re-rendering would fight the drag
+  const cat = e.target.dataset.slider;
+  if (cat) {
+    const out = document.getElementById('out-' + cat);
+    if (out) out.textContent = e.target.value;
+    return;
+  }
   if (!e.target.classList.contains('search')) return;
   query = e.target.value;
   rankPage = 0;
@@ -969,7 +1232,10 @@ Promise.all([
   const seen = new Set(scored.map(p => p.slug));
   const unrated = (Array.isArray(all) ? all : []).filter(p => !seen.has(p.slug)).map(p => ({ ...p, value: null }));
   data.ranked = [...scored, ...unrated];
+  data.board = scored;
   render();
+  if (page === 'leaderboard') loadBoard();
+  if (page === 'admin' && adminToken) loadAdminStats();
 });
 </script>
 </body>
