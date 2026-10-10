@@ -2,7 +2,8 @@
 
 ## Where things stand
 
-The navigation overhaul shipped and merged. The app is **live and public** at
+The navigation overhaul shipped, and `main` now tests and deploys itself. The app is
+**live and public** at
 <https://www.esports-player-atlas.workers.dev> — deliberately, as a prototype with
 disposable data, because Cloudflare Access turned out to need a payment method on the
 account even for its free tier.
@@ -11,13 +12,15 @@ account even for its free tier.
 |---|---|
 | Live | `www.esports-player-atlas.workers.dev`, Worker `www`, account `877776dfd5a7c2cc7304cb6456115313` |
 | Database | D1 `a5d65c76-5b23-49d1-bf45-49383957a680`, migrations `0001` and `0002` applied |
-| Data | 38 players, no accounts, ratings open to anyone |
+| Data | 38 players, 3 ratings on 3 of them, no accounts, rating open to anyone |
 | `main` | deploys itself — every push runs the tests, then migrations, then `wrangler deploy` |
 
-Ratings are already arriving from whoever has found the site. They are unattributable by
-construction — a voter id is a browser token that resets in two clicks — so treat them as
-disposable, which is what [accounts/06](accounts/06-legacy-ratings-after-accounts.md) exists
-to decide.
+Ratings have started arriving from whoever has found the site, but only just: **3 community
+ratings, 0 professional, spread over 3 players**, as of 2026-10-10 18:41 UTC. They are
+unattributable by construction — a voter id is a browser token that resets in two clicks.
+Three rows is small enough that [accounts/06](accounts/06-legacy-ratings-after-accounts.md),
+which decides what becomes of them once accounts exist, can probably be answered with
+"discard" and closed. Check the count again before assuming that still holds.
 
 Plans worth reading before touching anything: [deployment/spec.md](deployment/spec.md) and
 [navigation-overhaul/spec.md](navigation-overhaul/spec.md).
@@ -46,9 +49,10 @@ Obligations that attach to a publicly reachable service operated from Germany at
 the operator has, and probably a lawyer's eye.
 
 **[frontend/01](frontend/01-unrated-players-in-ranked-views.md) — unrated players.** The
-leaderboard route drops anyone with no ratings, so most of the 38 are invisible and the site
-opens nearly empty. First impression, and it also hides newly created players from the admin
-who just made them.
+leaderboard route drops anyone with no ratings, and only 3 of the 38 have any, so the public
+site currently opens showing **3 players**. Worse than "nearly empty" as previously written,
+and arguably worth doing before the two above it: it is the first thing every visitor sees,
+and it also hides newly created players from the admin who just made them.
 
 Lower: [stats/01](stats/01-history-means-vs-medians.md) (history shows means while the radar
 beside it shows medians — same data, visibly different numbers),
@@ -70,9 +74,10 @@ beside it shows medians — same data, visibly different numbers),
   Never set `run_worker_first: true` blanket; it converts every asset into a counted request
   and quarters that.
 - **Migrations run before the deploy**, so the *old* code briefly runs against the *new*
-  schema. Additive only; removals take two releases. They are forward-only — there is no
-  rollback, which is why `wrangler rollback` saves code but not schema. That ordering lives
-  in `npm run deploy`, not in the CI workflow, so **any** deploy can change the schema.
+  schema, and they are forward-only — `wrangler rollback` saves code but not schema. That
+  ordering lives in `npm run deploy` rather than in the CI workflow, so **any** deploy can
+  change the schema. The rules and the verification steps are in the `d1-migrations` skill,
+  which fires on an edit under `migrations/`; there is nothing to remember here.
 - **CI deploys show as *deployed by unknown*** in the Cloudflare dashboard. An API token has
   no user session behind it; that is expected, not a misconfiguration.
 - **`seed/demo.sql` must never touch production.** It holds `PRO-DEMO-2026`, published in
@@ -90,7 +95,12 @@ beside it shows medians — same data, visibly different numbers),
 - The Discord application: redirect URIs and secrets, step 0 of
   [accounts/01](accounts/01-discord-oauth-sign-in.md).
 - Branch protection on `main` requiring the `test` check. CI reports a red check on a
-  failing pull request but cannot block the merge without it — GitHub settings, not code.
+  failing pull request but cannot block the merge without it. **Owner-only**: this is a
+  personal repository, which has exactly two permission levels, so no collaborator
+  permission covers Settings → Rules. Either the owner creates the ruleset, or the
+  repository moves to an organisation where an Admin role exists. Verifiable without any
+  access: `api.github.com/repos/Nodachi18/esports-player-atlas/branches/main` reports
+  `protected`, currently `false`.
 - `gh` is not authenticated on this machine, so pull requests have to be opened in the web
   UI until `gh auth login` is run.
 - Whether to add a payment method and gate this after all, which would reverse the public
