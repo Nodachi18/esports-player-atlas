@@ -10,12 +10,14 @@
   "assets": { "directory": "./public", "binding": "ASSETS" },
   "d1_databases": [
     {
+      // The name the code reads it as: src/worker.js uses env.DB, and the npm db:* scripts
+      // pass DB to wrangler. Renaming this breaks both.
       "binding": "DB",
       "database_name": "esports-player-atlas",
-      // Replace with the id printed by `npx wrangler d1 create esports-player-atlas`.
-      "database_id": "00000000-0000-0000-0000-000000000000"
+      "database_id": "a5d65c76-5b23-49d1-bf45-49383957a680"
     }
   ],
-  "observability": { "enabled": true }
+  "observability": { "enabled": true },
+  "workers_dev": false
   // Secrets (not stored here): ADMIN_KEY, APP_SECRET — set with `npx wrangler secret put <NAME>`.
 }
