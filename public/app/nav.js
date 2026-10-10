@@ -40,12 +40,18 @@ export function navigation({ role = null, adminKey = false, accountsEnabled = fa
   ].filter(Boolean);
 }
 
+/**
+ * Footer links are session-independent: a legal notice says the same thing to everyone,
+ * and there is no session in which it is hidden.
+ */
 export const FOOTER_LINKS = [
-  { key: 'help', label: 'Help', href: '/help', visibility: VISIBILITY.planned },
-  { key: 'legal', label: 'Legal notice', href: '/legal', visibility: VISIBILITY.planned },
+  { key: 'help', label: 'Help', href: '/help', visibility: VISIBILITY.visible },
+  { key: 'legal', label: 'Legal notice', href: '/legal', visibility: VISIBILITY.visible },
+  { key: 'privacy', label: 'Privacy', href: '/privacy', visibility: VISIBILITY.visible },
 ];
 
 /** Whether a route key is reachable in this session, for rejecting a stale URL. */
 export function isReachable(pageKey, session) {
-  return navigation(session).some(item => item.key === pageKey);
+  return navigation(session).some(item => item.key === pageKey)
+    || FOOTER_LINKS.some(link => link.key === pageKey);
 }

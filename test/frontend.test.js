@@ -3,8 +3,9 @@ import assert from 'node:assert/strict';
 
 import { CATEGORIES, panelScores, hasScores, ratingCount, vertex, polygonPoints } from '../public/app/scores.js';
 import { buildRanking, filterPlayers, pageOf, resolveSelection } from '../public/app/ranking.js';
-import { navigation, isReachable, VISIBILITY } from '../public/app/nav.js';
+import { navigation, isReachable, FOOTER_LINKS, VISIBILITY } from '../public/app/nav.js';
 import { stateFromSearch, searchFromState, update, DEFAULT_STATE } from '../public/app/state.js';
+import { footer, helpPage, legalPage, privacyPage, CONTACT_CARD, CLOUDFLARE_PRIVACY } from '../public/app/views.js';
 
 const panel = (n, value) => ({
   n,
@@ -219,4 +220,197 @@ test('update never mutates and resets paging when the list changes', () => {
   assert.equal(state.strip, 4, 'the original is untouched');
   assert.equal(searched.strip, 0, 'a new result set starts at its first page');
   assert.equal(update(state, { lens: 'community' }).strip, 4, 'an unrelated change keeps the page');
+});
+
+// ---- footer and the legal notice ----
+
+const footerLink = key => FOOTER_LINKS.find(link => link.key === key);
+
+test('every footer link is built — nothing down there is planned any more', () => {
+  assert.deepEqual(FOOTER_LINKS.map(link => link.key), ['help', 'legal', 'privacy']);
+  assert.ok(FOOTER_LINKS.every(link => link.visibility === VISIBILITY.visible));
+});
+
+test('a footer route survives a typed URL, in every session', () => {
+  for (const key of ['help', 'legal', 'privacy']) {
+    assert.equal(isReachable(key, {}), true);
+    assert.equal(isReachable(key, { adminKey: true }), true);
+    assert.equal(stateFromSearch(`?page=${key}`).page, key);
+  }
+});
+
+test('the footer renders every link as an openable anchor', () => {
+  const html = footer(DEFAULT_STATE, {});
+  for (const key of ['help', 'legal', 'privacy']) {
+    assert.match(html, new RegExp(`<a class="footlink" href="\\?page=${key}"[^>]*data-page="${key}"`));
+  }
+  assert.doesNotMatch(html, /planned|aria-disabled/);
+});
+
+test('the current footer page is marked, like a nav item', () => {
+  assert.match(footer({ ...DEFAULT_STATE, page: 'legal' }, {}), /aria-current="page"/);
+  assert.doesNotMatch(footer(DEFAULT_STATE, {}), /aria-current="page"/);
+});
+
+test('the legal notice says why no provider information is published', () => {
+  const html = legalPage();
+  assert.match(html, /§ 5 DDG/, 'the exemption is named, not implied by an absence');
+  assert.match(html, /private, non-commercial/);
+});
+
+test('the heading carries Impressum as well as Legal notice', () => {
+  const html = legalPage();
+  assert.match(html, /Legal notice/);
+  assert.match(html, /<span class="alt" lang="de">Impressum<\/span>/);
+});
+
+test('contact is a nofollow link to the card, never a copy of it', () => {
+  const html = legalPage();
+  const anchor = html.match(/<a class="extlink"[^>]*>/)[0];
+  assert.ok(anchor.includes(`href="${CONTACT_CARD}"`));
+  for (const token of ['nofollow', 'noopener', 'noreferrer']) {
+    assert.match(anchor, new RegExp(`rel="[^"]*\\b${token}\\b`), `rel is missing ${token}`);
+  }
+  assert.equal(CONTACT_CARD.startsWith('https://www.falkenstein-harz.de/'), true);
+});
+
+test('nothing from the contact card is mirrored into the page', () => {
+  // The card holds a name, a postal address and a phone number. The whole point of linking
+  // rather than copying is that none of them live here, so there is no stale second copy.
+  // The link's own `mandat=21964` is the record id, not an address: it is the pointer the
+  // page is allowed to hold. Everything else is checked for leaked details.
+  const html = legalPage();
+  const body = html.split(CONTACT_CARD).join('');
+  assert.doesNotMatch(body, /\b\d{5}\b/, 'no German postal code');
+  assert.doesNotMatch(body, /tel:|Telefon|\+49/, 'no phone number');
+  assert.doesNotMatch(body, /mailto:/, 'no email address');
+  const outbound = html.match(/href="https?:[^"]*"/g) || [];
+  assert.deepEqual(outbound, [`href="${CONTACT_CARD}"`], 'exactly one outbound link');
+});
+
+// ---- privacy statement ----
+//
+// These pin the claims that go stale silently. A privacy page that quietly stops matching
+// the code is worse than none, because it is a published statement rather than a gap.
+
+test('Privacy is a real footer link beside Legal notice', () => {
+  assert.equal(footerLink('privacy').visibility, VISIBILITY.visible);
+  assert.equal(isReachable('privacy', {}), true);
+  assert.match(footer(DEFAULT_STATE, {}), /data-page="privacy"/);
+});
+
+test('the privacy page names the third party a visitor actually contacts', () => {
+  assert.ok(privacyPage(DEFAULT_STATE).includes(CLOUDFLARE_PRIVACY),
+    'Cloudflare hosts it and therefore sees every request');
+});
+
+test('every outbound link on the privacy page is nofollow', () => {
+  for (const anchor of privacyPage(DEFAULT_STATE).match(/<a [^>]*href="https:[^>]*>/g)) {
+    assert.match(anchor, /rel="[^"]*\bnofollow\b/, `not nofollow: ${anchor}`);
+  }
+});
+
+test('the only third parties disclosed are the only ones linked', () => {
+  const hosts = new Set((privacyPage(DEFAULT_STATE).match(/href="https:\/\/[^/"]+/g) || [])
+    .map(href => href.slice('href="https://'.length)));
+  assert.deepEqual([...hosts].sort(), ['www.cloudflare.com', 'www.falkenstein-harz.de']);
+});
+
+test('the rating section answers the reader, then stops', () => {
+  const html = privacyPage(DEFAULT_STATE);
+  assert.match(html, /No name, no email address, no IP address/);
+  assert.match(html, /one-way hash/);
+  assert.match(html, /cannot\s+be turned back into you/);
+  // How the one-rating-per-panel rule is enforced is the operator's mechanism, not the
+  // reader's exposure. It belongs in 03, not on the page.
+  assert.doesNotMatch(html, /clearing browser storage|rate the same player again/i);
+});
+
+test('the privacy page does not claim the legal notice exemption covers it', () => {
+  assert.doesNotMatch(privacyPage(DEFAULT_STATE), /DDG/, '§ 5 DDG scopes on commerce; the GDPR does not');
+});
+
+test('the Discord section is marked planned and says nothing happens yet', () => {
+  const html = privacyPage(DEFAULT_STATE);
+  const heading = html.match(/<h2 data-planned="1">[^]*?<\/h2>/)[0];
+  assert.match(heading, /Discord/);
+  assert.match(heading, /<span class="tag">planned<\/span>/, 'planned means not built yet, and is said that way');
+  assert.match(html, /None of this happens yet/);
+});
+
+// The page no longer discloses a third party because there no longer is one. Re-adding a
+// CDN font, script or image would make that silently untrue, and the privacy page would
+// not know. This is what notices it.
+test('nothing in the shipped front end loads from another origin', async () => {
+  const { readFile, readdir } = await import('node:fs/promises');
+  const read = name => readFile(new URL(`../public/${name}`, import.meta.url), 'utf8');
+
+  const appFiles = await readdir(new URL('../public/app', import.meta.url));
+  const sources = await Promise.all(['index.html', ...appFiles.map(f => `app/${f}`)].map(read));
+
+  for (const [i, source] of sources.entries()) {
+    const remote = source.match(/(?:src|href)\s*=\s*["']https?:\/\/[^"']+/gi) || [];
+    const urls = source.match(/url\(\s*['"]?https?:/gi) || [];
+    assert.deepEqual([...remote, ...urls], [], `remote reference in ${['index.html', ...appFiles][i]}`);
+  }
+});
+
+test('every font face the stylesheet declares is actually in the repo', async () => {
+  const { readFile, access } = await import('node:fs/promises');
+  const css = await readFile(new URL('../public/app/fonts.css', import.meta.url), 'utf8');
+  const faces = css.match(/url\('\/fonts\/([^']+)'\)/g) || [];
+  assert.ok(faces.length, 'fonts.css declares at least one face');
+  for (const face of faces) {
+    const file = face.match(/\/fonts\/([^']+)/)[1];
+    await access(new URL(`../public/fonts/${file}`, import.meta.url));
+  }
+  // The OFL requires the licence to travel with the files.
+  await access(new URL('../public/fonts/OFL.txt', import.meta.url));
+});
+
+// ---- help ----
+
+// Prose wraps across source lines, so match against collapsed whitespace rather than
+// contorting the page to keep an assertion on one line.
+const flat = html => html.replace(/\s+/g, ' ');
+
+test('Help asks four questions, each visually separated', () => {
+  const html = helpPage(DEFAULT_STATE);
+  const blocks = html.match(/<div class="qa">/g) || [];
+  assert.equal(blocks.length, 4, 'one card per question');
+  assert.equal((html.match(/<h2>/g) || []).length, 4, 'every card leads with its question');
+  for (const h2 of html.match(/<h2>[^<]*/g)) assert.match(h2, /\?$/, `not a question: ${h2}`);
+});
+
+test('Help links the legal notice for context', () => {
+  assert.match(helpPage(DEFAULT_STATE),
+    /<a class="inlink" href="\?page=legal" data-page="legal">legal notice<\/a>/);
+});
+
+// The page no longer prints the formula, but the weighting is still the answer to the first
+// question, so a change to the maths still has to reach it.
+test('Help states the weighting that src/stats.js actually applies', async () => {
+  const { PRO_WEIGHT } = await import('../src/stats.js');
+  const words = { 2: 'twice', 3: 'three times', 4: 'four times' };
+  assert.match(flat(helpPage(DEFAULT_STATE)),
+    new RegExp(`counts for ${words[PRO_WEIGHT]} as much`), 'the Combined answer is stale');
+});
+
+// What a reader is owed is what the scores mean, not how they are computed. This fails if
+// the page drifts back towards describing the machine.
+test('Help explains in a reader\'s terms, not the implementation\'s', () => {
+  const html = flat(helpPage(DEFAULT_STATE));
+  // Word boundaries: "mean" is deliberately absent as a statistic but unavoidable as a verb.
+  for (const jargon of ['standard deviations?', 'medians?', 'databases?', 'tokens?',
+                        'localStorage', 'endpoints?', 'API', 'hashe?s?', 'aggregate']) {
+    assert.doesNotMatch(html, new RegExp(`\\b${jargon}\\b`, 'i'), `Help should not say "${jargon}"`);
+  }
+});
+
+test('Help says becoming a professional is not currently possible', () => {
+  // There is no invite flow a reader can reach: nothing writes localStorage.proAtlas, so
+  // the honest answer is "nobody can", not a description of a route that does not exist.
+  const html = flat(helpPage(DEFAULT_STATE));
+  assert.match(html, /At the moment, nobody can/);
+  assert.match(html, /no way to ask for an invite or to use one/);
 });

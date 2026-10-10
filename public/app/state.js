@@ -5,7 +5,7 @@
 
 import { LENSES } from './scores.js';
 
-export const PAGES = ['players', 'leaderboard', 'rate', 'account', 'admin'];
+export const PAGES = ['players', 'leaderboard', 'rate', 'account', 'admin', 'help', 'legal', 'privacy'];
 export const METRICS = LENSES;
 export const CATEGORY_FILTERS = ['', 'strategy', 'tactics', 'micro', 'macro', 'decisions'];
 

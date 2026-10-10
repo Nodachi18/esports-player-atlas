@@ -86,3 +86,20 @@ and no more. That was the agreed bar.
 A visitor signs in with Discord **on the deployed origin, not just locally**, is recognised
 on return, and signs out again; an Account row exists keyed on the snowflake;
 `ACCOUNTS_ENABLED` is true and the navigation matrix behaves as spec §3 describes.
+
+## Comments
+
+**2026-10-10 — this ticket has a published promise attached to it.** The privacy page
+([content-pages/03](../content-pages/03-privacy-statement.md)) carries a section marked
+`planned` that states, live on the site today, what signing in with Discord will mean: the
+site receives a Discord account id, username and avatar, and a rating stops being a
+resettable browser token and becomes attributable to one identifiable person, linkable
+across every player they have rated.
+
+**Rewriting that section is part of shipping this ticket, before it goes live rather than
+after.** The moment sign-in works, a block saying "none of this happens yet" is false on a
+page whose whole value is that it is not.
+
+It also reframes [accounts/06](06-legacy-ratings-after-accounts.md): the privacy page says
+what becomes of pre-account ratings "is not yet decided", so 06 is now a question the site
+has publicly admitted to having.

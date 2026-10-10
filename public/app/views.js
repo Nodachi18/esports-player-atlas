@@ -55,9 +55,10 @@ function authControl(session) {
   return `<button class="discord" type="button" data-signin>Sign in with Discord</button>`;
 }
 
-export function footer(session) {
-  const links = FOOTER_LINKS.map(link =>
-    `<span class="planned"${inert}>${esc(link.label)}${plannedTag}</span>`).join('');
+export function footer(state, session) {
+  const links = FOOTER_LINKS.map(link => `
+    <a class="footlink" href="${hrefFor(state, { page: link.key })}" data-page="${link.key}"
+       ${link.key === state.page ? 'aria-current="page"' : ''}>${esc(link.label)}</a>`).join('');
   return `<footer class="foot">${links}${adminDoor(session)}</footer>`;
 }
 
@@ -295,6 +296,230 @@ export function adminPage(stats, ratings) {
 
   return `<section aria-label="Admin"><div class="stats">${cards}</div>${table}</section>`;
 }
+
+// ---- legal notice ----
+
+/**
+ * The operator's public contact card. Linked and never mirrored: nothing from that page —
+ * no name, no address, no phone number — is reproduced here, so this repo holds no second,
+ * stale copy of someone's personal data. `nofollow` because a municipal directory did not
+ * ask to be associated with a ratings prototype. See
+ * `.scratch/content-pages/02-legal-notice-private-site.md`.
+ */
+export const CONTACT_CARD = 'https://www.falkenstein-harz.de/m/verzeichnis/visitenkarte.php?mandat=21964';
+
+/**
+ * Both words in the heading on purpose. "Legal notice" is the label everywhere else,
+ * because the UI is English (navigation-overhaul decision 13) — but "Impressum" is the one
+ * word a German reader scans for, and the one they search the page for when they think
+ * something is missing. This closes that decision's open check.
+ */
+export const legalPage = () => `
+  <section class="prose" aria-label="Legal notice">
+    <h1>Legal notice <span class="alt" lang="de">Impressum</span></h1>
+
+    <h2>A private site, with no provider information</h2>
+    <p>
+      Esports Player Atlas is a private, non-commercial hobby project. Nothing is sold here,
+      nothing is advertised, and no business sits behind it. The duty to publish provider
+      information under <span lang="de">§ 5 DDG</span>
+      (<span lang="de">Digitale-Dienste-Gesetz</span>) applies to digital services offered
+      on a commercial basis, so it does not attach to this one, and no name or postal
+      address is published.
+    </p>
+
+    <h2>Contact</h2>
+    <p>
+      The operator can be contacted through this public contact card:
+    </p>
+    <p>
+      <a class="extlink" href="${CONTACT_CARD}" target="_blank" rel="nofollow noopener noreferrer">
+        Contact card on falkenstein-harz.de <span aria-hidden="true">↗</span>
+      </a>
+    </p>
+    <p class="note">
+      An external page, operated by someone else. This site has no control over what it
+      shows.
+    </p>
+
+    <h2>About the ratings</h2>
+    <p>
+      Every rating on this site is an opinion submitted by an anonymous visitor about a
+      named real person. Ratings are not checked, not verified, and not statements of fact.
+      The combined score weights the professional panel above the community panel — a
+      product choice, not a measurement of anybody.
+    </p>
+    <p>
+      This is a prototype running on disposable data. If you appear here and would rather
+      not, say so through the contact card above and the entry will be removed.
+    </p>
+  </section>`;
+
+/**
+ * Disclosed because the visitor's browser necessarily reaches it: Cloudflare hosts the
+ * site, so it sees every request. It is the only one — fonts are served from here, and
+ * nothing else on the page is remote. nofollow, like the contact card.
+ */
+export const CLOUDFLARE_PRIVACY = 'https://www.cloudflare.com/privacypolicy/';
+
+// ---- help ----
+
+/**
+ * Four questions a reader actually asks, answered in their terms. No formulas, no
+ * thresholds, no mention of what is stored where — the mechanisms are in
+ * `.scratch/content-pages/01-help-and-legal-notice.md` and the code, and a reader wanting
+ * to know what the scores mean is not helped by either.
+ *
+ * The one number that survives is the weighting, as a word, because "counts for twice as
+ * much" is the answer to the question rather than a detail of it.
+ */
+export const helpPage = state => `
+  <section class="prose help" aria-label="Help">
+    <h1>Help</h1>
+
+    <div class="qa">
+      <h2>Why are there two panels, and why does Combined count professionals double?</h2>
+      <p>
+        Anyone with a browser can rate on the community panel. The professional panel is for
+        invited players rating their own field, and a rating there counts for twice as much,
+        so the Combined score leans towards them.
+      </p>
+      <p>
+        That weighting is a choice somebody made, not a measurement of anybody. And a player
+        no professional has rated yet simply shows their community score as Combined.
+      </p>
+    </div>
+
+    <div class="qa">
+      <h2>What does a flagged rating mean?</h2>
+      <p>
+        That it is worth a second look, and nothing more. A flag is never proof that anyone
+        cheated.
+      </p>
+      <p>
+        A rating is flagged when it sits far outside what everyone else said about the same
+        player, and an admin can flag or clear one by hand. Flagged ratings are left out of
+        the scores shown on the site.
+      </p>
+    </div>
+
+    <div class="qa">
+      <h2>Why can I only rate a player once per panel?</h2>
+      <p>
+        So that one person cannot move a player's score by rating them over and over.
+      </p>
+      <p>
+        It also means a rating cannot be taken back or changed afterwards — a second one is
+        refused rather than replacing the first. Worth being sure before you submit.
+      </p>
+    </div>
+
+    <div class="qa">
+      <h2>How does someone become a professional?</h2>
+      <p>
+        At the moment, nobody can. The professional panel is invite-only, and there is
+        currently no way to ask for an invite or to use one.
+      </p>
+      <p>
+        Signing in with Discord is planned, and that is what will open the panel up.
+      </p>
+    </div>
+
+    <p class="note">
+      None of the numbers here are measurements. They are opinions submitted by visitors
+      about named real people — the
+      <a class="inlink" href="${hrefFor(state, { page: 'legal' })}" data-page="legal">legal notice</a>
+      covers what that means for anyone rated on this site, and how to have an entry removed.
+    </p>
+  </section>`;
+
+// ---- privacy ----
+
+/**
+ * Every claim here is checkable against `migrations/0001_init.sql`, `src/worker.js` and
+ * `public/index.html`. If you change what is stored, this page is part of the change —
+ * see `.scratch/content-pages/03-privacy-statement.md`.
+ *
+ * The § 5 DDG exemption on the legal notice does NOT extend to this page: that provision
+ * scopes on commercial purpose, the GDPR does not.
+ */
+export const privacyPage = state => `
+  <section class="prose" aria-label="Privacy">
+    <h1>Privacy <span class="alt" lang="de">Datenschutz</span></h1>
+
+    <h2>If you are rated on this site</h2>
+    <p>
+      Player entries are created by an administrator, from public competitive records. An
+      entry can hold a handle, a real name, a game, a faction and free-text notes. You
+      were not asked for your consent.
+    </p>
+    <p>
+      Ask through the contact card below and the entry will be deleted, along with every
+      rating attached to it.
+    </p>
+
+    <h2>If you submit a rating</h2>
+    <p>
+      What is written to the database is: which player, which panel, five scores from 0 to
+      100, the time, and a <em>voter hash</em>. No name, no email address, no IP address.
+    </p>
+    <p>
+      The voter hash is a one-way hash of a random token your browser generated. It cannot
+      be turned back into you.
+    </p>
+
+    <h2>What stays in your browser</h2>
+    <p>
+      No cookies, no analytics, no advertising, no tracking pixels. Three values in your
+      browser's own storage, none of which leaves it except as described above: the rating
+      token, a professional access token if you have one (30 days), and an administrator
+      token if you are one (until the tab closes).
+    </p>
+
+    <h2>Cloudflare, as the host</h2>
+    <p>
+      This site is hosted on Cloudflare, so every request you make reaches Cloudflare
+      before it reaches anything else. Cloudflare therefore handles connection data — your
+      IP address and your browser's user agent — and retains request metadata in its
+      logging for a period it sets. It does this as the hosting provider, on the
+      operator's behalf.
+    </p>
+    <p>
+      <a class="extlink" href="${CLOUDFLARE_PRIVACY}" target="_blank" rel="nofollow noopener noreferrer">
+        Cloudflare's privacy policy <span aria-hidden="true">↗</span>
+      </a>
+    </p>
+
+    <h2 data-planned="1">Signing in with Discord ${plannedTag}</h2>
+    <p>
+      <strong>None of this happens yet.</strong>
+    </p>
+    <p>
+      Accounts are planned. When they arrive, signing in with Discord means this site
+      receives your Discord account id, your username and your avatar, and a rating stops
+      being attached to a throwaway browser token: it becomes attached to <em>you</em>.
+      Every rating you have cast would then be attributable to one identifiable person and
+      linkable across every player you have rated, permanently.
+    </p>
+    <p>
+      What happens to ratings cast before that point is not yet decided.
+    </p>
+
+    <h2>Your rights, and how to use them</h2>
+    <p>
+      Access, correction, deletion, objection, and a complaint to a supervisory authority.
+      One route to all of them:
+    </p>
+    <p>
+      <a class="extlink" href="${CONTACT_CARD}" target="_blank" rel="nofollow noopener noreferrer">
+        Contact card on falkenstein-harz.de <span aria-hidden="true">↗</span>
+      </a>
+    </p>
+    <p class="note">
+      Who is responsible, and why no postal address is published, is on the
+      <a class="inlink" href="${hrefFor(state, { page: 'legal' })}" data-page="legal">legal notice</a>.
+    </p>
+  </section>`;
 
 export const plannedPage = (title, detail) =>
   `<div class="block"><b>${esc(title)}${plannedTag}</b><span>${esc(detail)}</span></div>`;

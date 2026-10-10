@@ -124,6 +124,14 @@ Going public without accounts is a deliberate trade, not an oversight. What it m
 
 ## What closes the gap
 
+> **Note, 2026-10-11.** Item 3 is done. The legal pages shipped — a legal notice, a privacy
+> statement, a Help page, site-wide `noindex`, and the removal of the only third party the
+> site contacted — as [content-pages/01](../content-pages/01-help-and-legal-notice.md),
+> [02](../content-pages/02-legal-notice-private-site.md),
+> [03](../content-pages/03-privacy-statement.md) and
+> [04](../content-pages/04-self-host-the-fonts.md). Everything below records the assessment
+> as it stood when the site went public; `HANDOFF.md` carries current state.
+
 In priority order, now that it is public:
 
 1. [accounts/01](../accounts/01-discord-oauth-sign-in.md) — sign-in, which is what makes a
