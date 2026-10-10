@@ -1,0 +1,1254 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>PROTOTYPE — header and nav variants</title>
+
+<!--
+  THROWAWAY PROTOTYPE. Not production. Delete before deploying.
+
+  Question: what should the static header, main nav and footer look like?
+  Three variants on one page, switchable via ?variant=A|B|C, each rendered in
+  every role state via ?state=anon|community|professional|adminkey.
+
+  Ticket: .scratch/navigation-overhaul/issues/03-header-and-nav-layout.md
+  Reads the real /api so density is judged against real data, not lorem.
+-->
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600&family=Barlow+Condensed:wght@500;600;700&display=swap" rel="stylesheet">
+
+<style>
+:root {
+  --void: #050b10;
+  --panel: #091722;
+  --sunk: #07131c;
+  --line: #23445a;
+  --line-dim: #173244;
+  --ink: #eaf5fc;
+  --mute: #88a1b2;
+  --community: #75c8fa;
+  --professional: #bd8dff;
+  --admin: #ffb259;
+  --combined: #dfeefb;
+  /* role tint (who you are) colours the chrome; lens tint (what you're reading) colours the data */
+  --role: var(--community);
+  --lens: var(--combined);
+  --sans: 'Barlow', system-ui, sans-serif;
+  --cond: 'Barlow Condensed', 'Barlow', system-ui, sans-serif;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  background: var(--void);
+  color: var(--ink);
+  font: 400 15px/1.5 var(--sans);
+  padding-bottom: 92px; /* clear the prototype bar */
+}
+
+a { color: inherit; text-decoration: none; }
+
+:focus-visible {
+  outline: 2px solid var(--role);
+  outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * { transition: none !important; animation: none !important; }
+}
+
+/* ---------- shared atoms ---------- */
+
+.brandmark { display: block; flex: none; }
+.brandmark polygon { fill: none; stroke: var(--role); stroke-width: 8; }
+
+.wordmark {
+  font-family: var(--cond);
+  font-weight: 700;
+  letter-spacing: .14em;
+  text-transform: uppercase;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.search {
+  background: var(--sunk);
+  border: 1px solid var(--line);
+  color: var(--ink);
+  font: 400 15px var(--sans);
+  padding: 9px 13px;
+  width: 100%;
+  border-radius: 3px;
+}
+.search::placeholder { color: var(--mute); }
+.search:focus { border-color: var(--role); outline: none; }
+
+.navlink {
+  font-family: var(--cond);
+  font-weight: 600;
+  font-size: 19px;
+  letter-spacing: .04em;
+  color: var(--mute);
+  padding: 4px 0;
+  cursor: pointer;
+  background: none;
+  border: 0;
+  position: relative;
+  transition: color .12s;
+}
+.navlink:hover { color: var(--ink); }
+.navlink[aria-current='page'] { color: var(--ink); }
+
+.planned {
+  opacity: .38;
+  cursor: not-allowed;
+  pointer-events: none;
+}
+.plannedtag {
+  font-family: var(--sans);
+  font-size: 10px;
+  font-weight: 500;
+  letter-spacing: .06em;
+  border: 1px solid currentColor;
+  border-radius: 2px;
+  padding: 1px 4px;
+  margin-left: 6px;
+  vertical-align: 2px;
+  opacity: .85;
+}
+
+.discord {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  background: #5865F2;
+  color: #fff;
+  border: 0;
+  border-radius: 3px;
+  font: 600 14px var(--sans);
+  padding: 9px 14px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.discord svg { width: 18px; height: 18px; fill: currentColor; }
+
+.whoami {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  cursor: pointer;
+  background: none;
+  border: 0;
+  color: inherit;
+  font: 500 14px var(--sans);
+  padding: 4px;
+}
+.avatar {
+  width: 28px; height: 28px;
+  border-radius: 50%;
+  background: var(--sunk);
+  border: 2px solid var(--role);
+  display: grid;
+  place-items: center;
+  font-family: var(--cond);
+  font-weight: 700;
+  font-size: 14px;
+  color: var(--role);
+  flex: none;
+}
+.rolename {
+  display: block;
+  font-size: 11px;
+  color: var(--role);
+  line-height: 1;
+  margin-top: 2px;
+}
+
+.lens {
+  display: inline-flex;
+  flex: none;
+  border: 1px solid var(--line);
+  border-radius: 3px;
+  overflow: hidden;
+  background: var(--sunk);
+}
+.lens button {
+  font-family: var(--cond);
+  font-weight: 600;
+  font-size: 15px;
+  letter-spacing: .04em;
+  background: none;
+  border: 0;
+  border-right: 1px solid var(--line-dim);
+  color: var(--mute);
+  padding: 7px 12px;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: color .12s, background .12s;
+}
+.lens button:last-child { border-right: 0; }
+.lens button:hover { color: var(--ink); }
+.lens button[data-on='1'] {
+  color: var(--void);
+  background: var(--lens);
+}
+/* inside the ratings panel the filter spans the pentagon it belongs to */
+.ratings .lens { display: flex; width: 100%; margin: 11px 0 2px; }
+.ratings .lens button { flex: 1; text-align: center; }
+
+.keypill {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  border: 1px solid var(--admin);
+  color: var(--admin);
+  border-radius: 3px;
+  font: 500 12px var(--sans);
+  padding: 5px 9px;
+  white-space: nowrap;
+}
+.keypill::before {
+  content: '';
+  width: 6px; height: 6px;
+  border-radius: 50%;
+  background: var(--admin);
+}
+
+/* ---------- variant A: single command bar ---------- */
+
+.vA-bar {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  padding: 0 22px;
+  min-height: 62px;
+  /* wraps rather than overflowing: the admin state does not fit one row at 1280px */
+  flex-wrap: wrap;
+  row-gap: 0;
+  border-bottom: 1px solid var(--line);
+  background: var(--panel);
+}
+.vA-brand { display: flex; align-items: center; gap: 11px; flex: none; }
+.vA-brand .wordmark { font-size: 19px; }
+/* must not be squeezed out by the nav, lens and auth controls competing for the same row */
+.vA-search { flex: 1 1 200px; min-width: 170px; max-width: 420px; }
+.vA-nav { display: flex; align-items: center; gap: 18px; margin-left: auto; flex: none; }
+.vA-nav .navlink[aria-current='page']::after {
+  content: '';
+  position: absolute;
+  left: 0; right: 0; bottom: -21px;
+  height: 2px;
+  background: var(--role);
+}
+.vA-auth { display: flex; align-items: center; gap: 12px; padding: 10px 0 10px 10px; border-left: 1px solid var(--line-dim); flex: none; }
+
+/* ---------- variant B: two tier ---------- */
+
+.vB-utility {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  padding: 0 28px;
+  height: 52px;
+  background: var(--void);
+  border-bottom: 1px solid var(--line-dim);
+}
+.vB-brand { display: flex; align-items: center; gap: 12px; }
+.vB-brand .wordmark { font-size: 21px; }
+.vB-tagline {
+  font-size: 11px;
+  color: var(--mute);
+  border-left: 1px solid var(--line-dim);
+  padding-left: 12px;
+  line-height: 1.3;
+  max-width: 190px;
+}
+.vB-search { flex: 1; max-width: 420px; margin-left: auto; }
+.vB-navrow {
+  display: flex;
+  align-items: stretch;
+  gap: 4px;
+  padding: 0 28px;
+  background: var(--panel);
+  border-bottom: 1px solid var(--line);
+}
+.vB-tab {
+  font-family: var(--cond);
+  font-weight: 600;
+  font-size: 21px;
+  letter-spacing: .04em;
+  color: var(--mute);
+  background: none;
+  border: 0;
+  padding: 13px 18px 12px;
+  cursor: pointer;
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+.vB-tab:hover { color: var(--ink); }
+.vB-tab[aria-current='page'] { color: var(--ink); }
+.vB-tab[aria-current='page']::after {
+  content: '';
+  position: absolute;
+  left: 18px; right: 18px; bottom: -1px;
+  height: 3px;
+  background: var(--role);
+}
+.vB-pent { margin-right: 9px; }
+.vB-pent polygon { fill: var(--role); }
+
+/* ---------- variant C: vertical rail ---------- */
+
+.vC-shell { display: flex; min-height: 100vh; }
+.vC-rail {
+  width: 212px;
+  flex: none;
+  background: var(--panel);
+  border-right: 1px solid var(--line);
+  display: flex;
+  flex-direction: column;
+  padding: 22px 0 18px;
+}
+.vC-brand {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  padding: 0 20px 22px;
+  border-bottom: 1px solid var(--line-dim);
+}
+.vC-brand .wordmark { font-size: 16px; white-space: normal; }
+.vC-nav { display: flex; flex-direction: column; padding: 14px 10px; gap: 2px; }
+.vC-item {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  font-family: var(--cond);
+  font-weight: 600;
+  font-size: 19px;
+  letter-spacing: .03em;
+  color: var(--mute);
+  background: none;
+  border: 0;
+  border-radius: 3px;
+  padding: 9px 11px;
+  cursor: pointer;
+  text-align: left;
+  width: 100%;
+}
+.vC-item:hover { color: var(--ink); background: var(--sunk); }
+.vC-item[aria-current='page'] {
+  color: var(--ink);
+  background: var(--sunk);
+  box-shadow: inset 3px 0 0 var(--role);
+}
+.vC-dot { width: 7px; height: 7px; border-radius: 50%; background: currentColor; flex: none; opacity: .55; }
+.vC-item[aria-current='page'] .vC-dot { background: var(--role); opacity: 1; }
+.vC-foot { margin-top: auto; padding: 16px 21px 0; border-top: 1px solid var(--line-dim); display: grid; gap: 9px; font-size: 13px; }
+.vC-main { flex: 1; min-width: 0; }
+.vC-top {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  height: 58px;
+  padding: 0 26px;
+  border-bottom: 1px solid var(--line);
+}
+.vC-search { flex: 1; max-width: 480px; }
+.vC-auth { margin-left: auto; display: flex; align-items: center; gap: 14px; }
+
+/* ---------- content area: what the primary nav swaps ---------- */
+
+.body-wrap { max-width: 1280px; margin: 0 auto; padding: 20px 26px; }
+
+/* ranked strip: the leaderboard and the search result, as one row above the detail */
+.rankbar { margin-bottom: 18px; }
+.rankhead { display: flex; align-items: center; gap: 12px; margin-bottom: 9px; }
+.rankhead h2 { font: 600 12px var(--sans); letter-spacing: .09em; text-transform: uppercase; color: var(--mute); margin: 0; }
+.rankpos { font-size: 12px; color: var(--mute); margin-left: auto; }
+.pager { background: var(--panel); border: 1px solid var(--line); color: var(--ink); border-radius: 3px; width: 30px; height: 28px; cursor: pointer; font-size: 14px; }
+.pager:disabled { opacity: .3; cursor: default; }
+
+.rankrow { display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; gap: 10px; }
+.rankcard {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  grid-template-rows: auto auto;
+  align-items: center;
+  gap: 1px 10px;
+  text-align: left;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  padding: 10px 13px;
+  cursor: pointer;
+  color: inherit;
+  min-width: 0;
+}
+.rankcard:hover { border-color: var(--role); }
+.rankcard[data-on='1'] { border-color: var(--role); background: var(--sunk); box-shadow: inset 0 -3px 0 var(--role); }
+.rankcard .rank { grid-area: 1 / 1 / 3 / 2; font-family: var(--cond); font-weight: 700; font-size: 27px; color: var(--mute); line-height: 1; }
+.rankcard[data-on='1'] .rank { color: var(--role); }
+.rankcard .rname { grid-area: 1 / 2 / 2 / 3; font-family: var(--cond); font-weight: 600; font-size: 19px; letter-spacing: .03em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rankcard .rmeta { grid-area: 2 / 2 / 3 / 3; font-size: 11px; color: var(--mute); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rankcard .rscore { grid-area: 1 / 3 / 3 / 4; font-family: var(--cond); font-weight: 700; font-size: 22px; color: var(--lens); }
+.rankempty { color: var(--mute); font-size: 13px; padding: 14px 0; }
+
+/* three columns: who they are, what they're like, how they rate */
+.profile {
+  display: grid;
+  grid-template-columns: 236px minmax(260px, 1fr) minmax(380px, 470px);
+  gap: 22px;
+  align-items: start;
+}
+
+.portrait {
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  background: var(--panel);
+  overflow: hidden;
+}
+.portrait .frame {
+  aspect-ratio: 3 / 4;
+  display: grid;
+  place-items: center;
+  background:
+    repeating-linear-gradient(135deg, #0b1a26 0 11px, #09161f 11px 22px);
+  color: var(--line);
+  font-family: var(--cond);
+  font-weight: 700;
+  font-size: 86px;
+  line-height: 1;
+}
+.portrait .cap {
+  display: flex; align-items: center; justify-content: space-between; gap: 10px;
+  border-top: 1px solid var(--line);
+  padding: 9px 12px;
+  font: 600 13px var(--sans);
+  letter-spacing: .06em;
+  text-transform: uppercase;
+}
+.portrait .cap small { font-size: 10px; letter-spacing: .04em; text-transform: none; color: var(--mute); }
+
+.idblock { margin-bottom: 18px; }
+.idname { font-family: var(--cond); font-weight: 700; font-size: 58px; line-height: .9; letter-spacing: .005em; }
+.idreal { color: var(--mute); font-size: 15px; margin-top: 7px; }
+
+.fact {
+  border: 1px solid var(--line);
+  border-left: 3px solid var(--role);
+  border-radius: 3px;
+  background: var(--panel);
+  padding: 11px 15px;
+  margin-bottom: 10px;
+}
+.fact .k { font-size: 11px; letter-spacing: .1em; text-transform: uppercase; color: var(--mute); }
+.fact .v { font-family: var(--cond); font-weight: 600; font-size: 25px; line-height: 1.15; margin-top: 2px; }
+.fact.missing { border-left-color: var(--line); }
+.fact.missing .v { color: var(--mute); font-weight: 500; }
+
+/* the filter belongs to the pentagon, not to the chrome */
+.ratings { border: 1px solid var(--line); border-radius: 4px; background: var(--panel); padding: 15px 15px 6px; }
+.ratings header { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 4px; }
+.ratings h2 { font: 600 12px var(--sans); letter-spacing: .09em; text-transform: uppercase; color: var(--mute); margin: 0; }
+.ratings .n { font-size: 12px; color: var(--mute); }
+.radar { width: 100%; display: block; }
+.radar .vlabel { font: 600 11px var(--sans); letter-spacing: .09em; fill: #9fb5c4; }
+.radar .vvalue { font-family: var(--cond); font-weight: 700; font-size: 20px; fill: var(--lens); }
+.emptyline { color: var(--mute); font-size: 13px; text-align: center; padding: 0 0 12px; }
+
+/* ---------- leaderboard ---------- */
+
+.lbcontrols { display: flex; gap: 10px; align-items: center; margin-bottom: 14px; flex-wrap: wrap; }
+.lbcontrols label { font-size: 11px; letter-spacing: .09em; text-transform: uppercase; color: var(--mute); }
+.sel {
+  background: var(--sunk); color: var(--ink); border: 1px solid var(--line);
+  border-radius: 3px; padding: 8px 10px; font: 500 14px var(--sans);
+}
+.lbrow {
+  display: grid; grid-template-columns: 44px 1fr auto; align-items: center; gap: 12px;
+  width: 100%; text-align: left; background: none; border: 0;
+  border-bottom: 1px solid var(--line-dim); padding: 11px 8px; cursor: pointer; color: inherit;
+}
+.lbrow:hover { background: var(--panel); }
+.lbrow[data-on='1'] { background: var(--sunk); box-shadow: inset 3px 0 0 var(--role); }
+.lbrow .n { font-family: var(--cond); font-weight: 700; font-size: 20px; color: var(--mute); }
+.lbrow .who { font-family: var(--cond); font-weight: 600; font-size: 19px; letter-spacing: .03em; }
+.lbrow .who small { display: block; font-family: var(--sans); font-weight: 400; font-size: 11px; letter-spacing: 0; color: var(--mute); }
+.lbrow .v { font-family: var(--cond); font-weight: 700; font-size: 23px; color: var(--lens); }
+
+/* ---------- rate ---------- */
+
+.rateform { max-width: 620px; }
+.slider { background: var(--panel); border: 1px solid var(--line); border-radius: 3px; padding: 11px 14px; margin-bottom: 9px; }
+.slider .top { display: flex; justify-content: space-between; align-items: baseline; }
+.slider .k { font-size: 11px; letter-spacing: .1em; text-transform: uppercase; color: var(--mute); }
+.slider .out { font-family: var(--cond); font-weight: 700; font-size: 22px; color: var(--lens); }
+.slider input { width: 100%; margin: 6px 0 0; accent-color: var(--role); }
+.btn {
+  background: var(--role); color: var(--void); border: 0; border-radius: 3px;
+  font: 700 15px var(--cond); letter-spacing: .05em; padding: 11px 20px; cursor: pointer;
+}
+.btn.ghost { background: none; border: 1px solid var(--line); color: var(--ink); font-weight: 600; }
+.result { margin-top: 13px; padding: 12px 14px; border-radius: 3px; border: 1px solid var(--line); border-left-width: 3px; font-size: 14px; }
+.result.ok { border-left-color: #6fd08c; }
+.result.dupe { border-left-color: var(--admin); }
+.result.bad { border-left-color: #ff7a7a; }
+.result code { font-family: ui-monospace, monospace; font-size: 12px; color: var(--mute); }
+
+/* ---------- admin ---------- */
+
+.statgrid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; margin-bottom: 16px; }
+.stat { background: var(--panel); border: 1px solid var(--line); border-radius: 4px; padding: 14px 16px; }
+.stat b { display: block; font-family: var(--cond); font-weight: 700; font-size: 31px; color: var(--admin); line-height: 1; }
+.stat span { font-size: 11px; letter-spacing: .09em; text-transform: uppercase; color: var(--mute); }
+
+/* ---------- footer admin door ---------- */
+
+.adminbox { display: flex; align-items: center; gap: 8px; margin-left: auto; }
+.adminbox input {
+  background: var(--sunk); border: 1px solid var(--line); color: var(--ink);
+  border-radius: 3px; padding: 6px 10px; font: 400 13px var(--sans); width: 170px;
+}
+.adminbox input:focus { border-color: var(--admin); outline: none; }
+.adminbox .mini { background: none; border: 1px solid var(--line); color: var(--mute); border-radius: 3px; padding: 6px 10px; font: 600 12px var(--sans); cursor: pointer; }
+.adminbox .mini:hover { color: var(--ink); border-color: var(--admin); }
+.adminerr { color: #ff9b9b; font-size: 12px; }
+
+.pageholder {
+  border: 1px dashed var(--line);
+  border-radius: 4px;
+  padding: 46px 30px;
+  text-align: center;
+  color: var(--mute);
+}
+.pageholder b { display: block; font-family: var(--cond); font-weight: 600; font-size: 26px; color: var(--ink); margin-bottom: 6px; letter-spacing: .03em; }
+
+.notice {
+  border: 1px solid var(--line);
+  border-left: 3px solid var(--role);
+  background: var(--sunk);
+  padding: 13px 15px;
+  border-radius: 3px;
+  font-size: 14px;
+  margin-bottom: 16px;
+}
+.notice b { font-weight: 600; }
+
+/* ---------- footer ---------- */
+
+.sitefoot {
+  border-top: 1px solid var(--line-dim);
+  margin-top: 30px;
+  padding: 20px 26px 28px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 18px 26px;
+  align-items: center;
+  font-size: 13px;
+  color: var(--mute);
+  max-width: 1240px;
+  margin-inline: auto;
+}
+.sitefoot .spacer { margin-left: auto; }
+
+/* ---------- prototype chrome (deliberately NOT part of the design) ---------- */
+
+.protobar {
+  position: fixed;
+  left: 50%;
+  bottom: 18px;
+  transform: translateX(-50%);
+  z-index: 99;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: #fff;
+  color: #10151c;
+  border-radius: 999px;
+  padding: 6px 8px;
+  box-shadow: 0 8px 30px rgba(0,0,0,.55);
+  font: 500 13px var(--sans);
+  max-width: calc(100vw - 24px);
+  flex-wrap: wrap;
+  justify-content: center;
+}
+.protobar button {
+  font: 600 13px var(--sans);
+  border: 0;
+  background: #10151c;
+  color: #fff;
+  border-radius: 999px;
+  padding: 6px 11px;
+  cursor: pointer;
+}
+.protobar .vlabel { padding: 0 10px; white-space: nowrap; font-weight: 600; }
+.protobar .states { display: flex; gap: 4px; border-left: 1px solid #c9d2dc; padding-left: 8px; margin-left: 2px; }
+.protobar .states button { background: #e8edf2; color: #10151c; font-weight: 500; }
+.protobar .states button[data-on='1'] { background: #10151c; color: #fff; font-weight: 600; }
+
+@media (max-width: 1080px) {
+  .profile { grid-template-columns: 200px 1fr; }
+  .ratings { grid-column: 1 / -1; }
+}
+
+@media (max-width: 900px) {
+  .profile { grid-template-columns: 1fr; }
+  .idname { font-size: 46px; }
+  .vA-bar { flex-wrap: wrap; height: auto; padding: 12px 18px; gap: 14px; }
+  .vA-brand { order: 1; }
+  .vA-auth { order: 2; margin-left: auto; padding-left: 0; border-left: 0; }
+  .vA-search { order: 3; flex-basis: 100%; max-width: none; }
+  .vA-nav { order: 4; margin-left: 0; width: 100%; overflow-x: auto; }
+  .vA-nav .navlink[aria-current='page']::after { bottom: -6px; }
+  .vB-utility { flex-wrap: wrap; height: auto; padding: 12px 18px; gap: 12px; }
+  .vB-brand { order: 1; }
+  .vB-utility .whoami, .vB-utility .discord, .vB-utility .keypill { order: 2; margin-left: auto; }
+  .vB-search { order: 3; flex-basis: 100%; max-width: none; margin-left: 0; }
+  .vB-tagline { display: none; }
+  .vB-navrow { overflow-x: auto; padding: 0 14px; }
+  .vC-shell { flex-direction: column; }
+  .vC-rail { width: 100%; flex-direction: column; }
+  .vC-nav { flex-direction: row; overflow-x: auto; }
+  .vC-foot { margin-top: 0; }
+}
+</style>
+</head>
+<body>
+
+<div id="app"></div>
+
+<nav class="protobar" aria-label="Prototype controls">
+  <button id="prev" aria-label="Previous variant">←</button>
+  <span class="vlabel" id="vlabel"></span>
+  <button id="next" aria-label="Next variant">→</button>
+  <span class="states" id="states"></span>
+</nav>
+
+<script>
+const CATS = ['strategy','tactics','micro','macro','decisions'];
+
+const VARIANTS = {
+  A: 'Command bar — one dense row',
+  B: 'Two tier — utility over navigation',
+  C: 'Rail — navigation is vertical',
+};
+
+const STATES = {
+  anon:         { label: 'Signed out',   role: null,           tint: 'var(--community)' },
+  community:    { label: 'Community',    role: 'community',    tint: 'var(--community)' },
+  professional: { label: 'Professional', role: 'professional', tint: 'var(--professional)' },
+  adminkey:     { label: 'Admin key',    role: null,           tint: 'var(--admin)', adminKey: true },
+};
+
+// The existing #view / #metric control, promoted into the chrome as one global lens.
+const LENSES = {
+  combined:     { label: 'Combined',     tint: 'var(--combined)' },
+  community:    { label: 'Community',    tint: 'var(--community)' },
+  professional: { label: 'Professionals', tint: 'var(--professional)' },
+};
+
+const params = new URLSearchParams(location.search);
+let variant = (params.get('variant') || 'A').toUpperCase();
+let state = params.get('state') || 'anon';
+let lens = params.get('lens') || 'combined';
+let page = params.get('page') || 'players';
+let slug = params.get('player') || '';   // empty: fall back to the top-ranked player
+let query = params.get('q') || '';
+let rankPage = 0;
+let metric = params.get('metric') || 'combined';
+let category = params.get('category') || '';
+let adminToken = sessionStorage.protoAdmin || '';   // real token from /api/admin/login
+let adminMsg = '';
+let rateResult = null;
+if (!VARIANTS[variant]) variant = 'A';
+if (!STATES[state]) state = 'anon';
+if (!LENSES[lens]) lens = 'combined';
+
+let data = { ranked: [] };
+
+// Nav model. 'visible' resolves per state — this IS the decision being prototyped.
+function navItems(s) {
+  const st = STATES[s];
+  const signedIn = !!st.role;
+  return [
+    { key: 'players',     label: 'Players',     show: true },
+    { key: 'leaderboard', label: 'Leaderboard', show: true },
+    // decision 12: visible signed out, prompts sign-in rather than hiding
+    { key: 'rate',        label: 'Rate',        show: true, signin: !signedIn },
+    // decision 11: Profile always means your own account; hidden without one
+    { key: 'account',     label: 'Account',     show: signedIn },
+    // decision 3 + 19: admin is still the key, orthogonal to accounts; the footer is the door
+    { key: 'admin',       label: 'Admin',       show: !!st.adminKey || !!adminToken },
+  ].filter(i => i.show);
+}
+
+const FOOTER = [
+  { label: 'Help', planned: true },
+  { label: 'Legal notice', planned: true },
+];
+
+const esc = s => String(s ?? '').replace(/[&<>"']/g, m => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[m]));
+
+function pentagon(size, inset) {
+  const r = size / 2 - inset, c = size / 2;
+  return CATS.map((_, i) => {
+    const a = -Math.PI / 2 + i * 2 * Math.PI / 5;
+    return [c + Math.cos(a) * r, c + Math.sin(a) * r].map(n => n.toFixed(1)).join(',');
+  }).join(' ');
+}
+
+const mark = (size = 26) =>
+  `<svg class="brandmark" width="${size}" height="${size}" viewBox="0 0 100 100" aria-hidden="true">
+     <polygon points="${pentagon(100, 6)}"/>
+   </svg>`;
+
+const discordBtn = () =>
+  `<button class="discord" type="button">
+     <svg viewBox="0 0 127 96" aria-hidden="true"><path d="M107 8A105 105 0 0 0 81 0l-3 7a97 97 0 0 0-29 0l-4-7a105 105 0 0 0-26 8C3 33-2 57 1 81a106 106 0 0 0 32 16l7-11c-4-1-8-3-11-5l2-2a75 75 0 0 0 64 0l3 2c-4 2-8 4-12 5l7 11a106 106 0 0 0 32-16c3-28-4-52-18-73ZM42 66c-6 0-12-6-12-13s6-13 12-13 12 6 12 13-5 13-12 13Zm43 0c-7 0-12-6-12-13s5-13 12-13 12 6 12 13-5 13-12 13Z"/></svg>
+     Sign in with Discord
+   </button>`;
+
+function identity(s) {
+  const st = STATES[s];
+  if (st.adminKey) return `<span class="keypill">Admin key active</span>` + discordBtn();
+  if (!st.role) return discordBtn();
+  const who = st.role === 'professional' ? 'JYJ' : 'Nodachi';
+  const sub = st.role === 'professional' ? 'Professional' : 'Community';
+  return `<button class="whoami" type="button">
+            <span class="avatar">${who[0]}</span>
+            <span>${who}<span class="rolename">${sub}</span></span>
+          </button>`;
+}
+
+function navHTML(s, cls, currentKey, withPent) {
+  return navItems(s).map(i => {
+    const cur = i.key === currentKey ? ` aria-current="page"` : '';
+    const pent = withPent && i.key === currentKey
+      ? `<svg class="vB-pent" width="11" height="11" viewBox="0 0 100 100" aria-hidden="true"><polygon points="${pentagon(100, 2)}"/></svg>`
+      : '';
+    const hint = i.signin ? ` title="Sign-in required"` : '';
+    return `<button class="${cls}" type="button" data-page="${i.key}"${cur}${hint}>${pent}${i.label}</button>`;
+  }).join('');
+}
+
+function lensHTML() {
+  return `<div class="lens" role="group" aria-label="Panel">` +
+    Object.entries(LENSES).map(([k, v]) =>
+      `<button type="button" data-lens="${k}" data-on="${k === lens ? 1 : 0}" aria-pressed="${k === lens}">${v.label}</button>`
+    ).join('') + `</div>`;
+}
+
+function footerHTML() {
+  const links = FOOTER.map(f =>
+    `<a href="#" class="${f.planned ? 'planned' : ''}" ${f.planned ? 'aria-disabled="true" tabindex="-1"' : ''}>${f.label}${f.planned ? '<span class="plannedtag">planned</span>' : ''}</a>`
+  ).join('');
+  return `<footer class="sitefoot">${links}${adminDoorHTML()}</footer>`;
+}
+
+// Interim per spec §11: the footer is the door, the Admin page is the room.
+function adminDoorHTML() {
+  if (adminToken) {
+    return `<span class="adminbox">
+      <span class="keypill">Signed in as admin</span>
+      <button class="mini" type="button" data-admin-drop>Drop token</button>
+    </span>`;
+  }
+  return `<span class="adminbox">
+    ${adminMsg ? `<span class="adminerr">${esc(adminMsg)}</span>` : ''}
+    <input type="password" id="adminkey" placeholder="Admin key" autocomplete="off">
+    <button class="mini" type="button" data-admin-login>Sign in as admin</button>
+  </span>`;
+}
+
+async function adminLogin() {
+  const field = document.getElementById('adminkey');
+  const key = field ? field.value : '';
+  adminMsg = '';
+  try {
+    const r = await fetch('/api/admin/login', {
+      method: 'POST', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ key }),
+    });
+    const j = await r.json();
+    if (!r.ok) throw Error(j.error || 'Rejected');
+    adminToken = j.token;
+    sessionStorage.protoAdmin = adminToken;   // key itself is never stored
+    page = 'admin';
+    render();
+    loadAdminStats();
+  } catch (e) {
+    adminMsg = e.message;
+    render();
+  }
+}
+
+function loadAdminStats() {
+  return fetch('/api/admin/stats', { headers: { authorization: 'Bearer ' + adminToken } })
+    .then(r => r.json())
+    .then(j => { data.adminStats = j; render(); })
+    .catch(() => {});
+}
+
+async function submitRating() {
+  const p = selected();
+  const panelEl = document.getElementById('rate-panel');
+  const panel = panelEl ? panelEl.value : 'community';
+  const body = { player: p.slug, panel };
+  for (const c of CATS) body[c] = Number(document.getElementById('r-' + c).value);
+  if (panel === 'community') {
+    body.voter = localStorage.protoVoter || (localStorage.protoVoter = 'proto-' + crypto.randomUUID() + crypto.randomUUID());
+  }
+  // professional deliberately sends no token: the 401 is a state the spec requires us to show
+  const r = await fetch('/api/ratings', {
+    method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body),
+  });
+  const j = await r.json().catch(() => ({}));
+  rateResult =
+    r.status === 201 ? { kind: 'ok',   status: 201, text: 'Rating accepted. The radar below is redrawn from the response, not refetched.' }
+  : r.status === 409 ? { kind: 'dupe', status: 409, text: 'Already rated this player on this panel. Expected on a second attempt — not an error.' }
+  : r.status === 401 ? { kind: 'bad',  status: 401, text: 'Professional rating needs professional access, which does not exist until accounts land.' }
+  : r.status === 404 ? { kind: 'bad',  status: 404, text: 'Unknown or inactive player.' }
+  :                    { kind: 'bad',  status: r.status, text: j.error || 'Rejected.' };
+
+  if (r.status === 201 && j.player) {
+    // the response carries the rated player's new aggregates: redraw the radar from it now
+    const i = data.ranked.findIndex(x => x.slug === j.player.slug);
+    if (i > -1) data.ranked[i] = { ...data.ranked[i], ...j.player };
+    render();
+    // but it cannot carry the new rank, which depends on every other player — refetch that
+    return loadRanked();
+  }
+  render();
+}
+
+function loadBoard() {
+  return fetch(`/api/leaderboard?metric=${metric}&category=${category}`)
+    .then(r => r.json())
+    .then(j => { data.board = j.players || []; render(); })
+    .catch(() => {});
+}
+
+const PER_PAGE = 5;
+
+// Players is one view over the ranked list and the search result.
+function ranked() {
+  const q = query.trim().toLowerCase();
+  if (!q) return data.ranked;
+  return data.ranked.filter(p =>
+    [p.name, p.game, p.faction, p.real_name].some(v => String(v || '').toLowerCase().includes(q)));
+}
+
+function selected() {
+  const list = ranked();
+  return list.find(p => p.slug === slug) || list[0] || data.ranked.find(p => p.slug === slug) || null;
+}
+
+function stripHTML() {
+  const list = ranked();
+  if (!list.length) {
+    return `<p class="rankempty">${data.ranked.length ? `No player matches “${esc(query)}”.` : 'API unreachable — is the Worker running?'}</p>`;
+  }
+
+  const pages = Math.ceil(list.length / PER_PAGE);
+  if (rankPage > pages - 1) rankPage = pages - 1;
+  const from = rankPage * PER_PAGE;
+  const window_ = list.slice(from, from + PER_PAGE);
+  const cur = selected();
+
+  const cards = window_.map((p, i) => `
+    <button class="rankcard" type="button" data-slug="${esc(p.slug)}" data-on="${cur && p.slug === cur.slug ? 1 : 0}">
+      <span class="rank">${p.rank == null ? '–' : p.rank}</span>
+      <span class="rname">${esc(p.name)}</span>
+      <span class="rscore">${p.value == null ? '—' : Math.round(p.value)}</span>
+      <span class="rmeta">${esc(p.game)} · ${esc(p.faction)}</span>
+    </button>`).join('');
+
+  return `
+    <div class="rankhead">
+      <h2>${query ? 'Search result' : 'Ranked by combined score'}</h2>
+      <span class="rankpos">${from + 1}–${Math.min(from + PER_PAGE, list.length)} of ${list.length}</span>
+      <button class="pager" type="button" data-rank="prev" aria-label="Previous players"${rankPage === 0 ? ' disabled' : ''}>←</button>
+      <button class="pager" type="button" data-rank="next" aria-label="More players"${rankPage >= pages - 1 ? ' disabled' : ''}>→</button>
+    </div>
+    <div class="rankrow">${cards}</div>`;
+}
+
+// One content area. The primary nav swaps what renders inside it.
+function pageHTML(s) {
+  const inner =
+    page === 'players'     ? playersHTML(s)
+  : page === 'leaderboard' ? leaderboardHTML()
+  : page === 'rate'        ? rateHTML(s)
+  : page === 'admin'       ? adminHTML()
+  : `<div class="pageholder"><b>Account</b>Planned. It needs accounts, which are not built yet.</div>`;
+  return `<div class="body-wrap">${inner}${footerHTML()}</div>`;
+}
+
+// ---- Leaderboard: parity with GET /api/leaderboard?metric=&category= ----
+
+const METRICS = { combined: 'Combined', community: 'Community', professional: 'Professionals' };
+const CATEGORY_LABELS = { '': 'Overall', strategy: 'strategy', tactics: 'tactics', micro: 'micro', macro: 'macro', decisions: 'decisions' };
+
+function leaderboardHTML() {
+  const rows = (data.board || []).map((p, i) => `
+    <button class="lbrow" type="button" data-slug="${esc(p.slug)}" data-goto="players" data-on="${p.slug === slug ? 1 : 0}">
+      <span class="n">${i + 1}</span>
+      <span class="who">${esc(p.name)}<small>${esc(p.game)} · ${esc(p.faction)}</small></span>
+      <span class="v">${Math.round(p.value)}</span>
+    </button>`).join('');
+
+  return `
+    <div class="lbcontrols">
+      <label for="lb-metric">Panel</label>
+      <select class="sel" id="lb-metric" data-control="metric">
+        ${Object.entries(METRICS).map(([k, v]) => `<option value="${k}"${k === metric ? ' selected' : ''}>${v}</option>`).join('')}
+      </select>
+      <label for="lb-category">Category</label>
+      <select class="sel" id="lb-category" data-control="category">
+        ${Object.entries(CATEGORY_LABELS).map(([k, v]) => `<option value="${k}"${k === category ? ' selected' : ''}>${v}</option>`).join('')}
+      </select>
+      <span class="rankpos">${(data.board || []).length} ranked${category ? ' by ' + category : ' overall'}</span>
+    </div>
+    ${rows || '<p class="rankempty">No scored players yet.</p>'}
+    <p class="emptyline" style="text-align:left;padding-top:14px">
+      Unrated players never appear here — the route drops them. See spec §15.
+    </p>
+    <div class="pageholder" style="margin-top:18px">
+      <b>Compare <span class="plannedtag">planned</span></b>
+      /api/compare takes up to four players and works today, but no UI has ever called it.
+    </div>`;
+}
+
+// ---- Rate: parity with POST /api/ratings ----
+
+function rateHTML(s) {
+  const p = selected();
+  if (!p) return `<div class="pageholder"><b>No player selected</b>Pick someone on Players first — there is nothing to rate.</div>`;
+
+  const sliders = CATS.map(c => `
+    <div class="slider">
+      <div class="top"><span class="k">${c}</span><span class="out" id="out-${c}">75</span></div>
+      <input type="range" min="0" max="100" value="75" id="r-${c}" data-slider="${c}">
+    </div>`).join('');
+
+  const r = rateResult;
+  const res = !r ? '' : `<div class="result ${r.kind}">${r.text}${r.status ? ` <code>HTTP ${r.status}</code>` : ''}</div>`;
+
+  return `
+    <h1 style="font-family:var(--cond);font-weight:700;font-size:38px;margin:0 0 4px">Rate ${esc(p.name)}</h1>
+    <p class="idreal" style="margin:0 0 18px">${esc(p.real_name || '')}${p.real_name ? ' · ' : ''}${esc(p.game)} · carried over from Players</p>
+    <div class="rateform">
+      <div class="lbcontrols">
+        <label for="rate-panel">Panel</label>
+        <select class="sel" id="rate-panel" data-control="ratepanel">
+          <option value="community">Community</option>
+          <option value="professional">Professional</option>
+        </select>
+      </div>
+      ${sliders}
+      <button class="btn" type="button" data-rate-submit>Submit rating</button>
+      ${res}
+    </div>`;
+}
+
+// ---- Admin: re-hosted unchanged, entered from the footer ----
+
+function adminHTML() {
+  if (!adminToken) return `<div class="pageholder"><b>Admin</b>Enter the admin key in the footer to open this.</div>`;
+  const t = data.adminStats && data.adminStats.totals;
+  if (!t) return `<div class="pageholder"><b>Admin</b>Loading…</div>`;
+  return `
+    <div class="statgrid">
+      <div class="stat"><b>${t.players || 0}</b><span>players</span></div>
+      <div class="stat"><b>${t.ratings || 0}</b><span>ratings</span></div>
+      <div class="stat"><b>${t.flagged || 0}</b><span>flagged</span></div>
+    </div>
+    <p class="emptyline" style="text-align:left">
+      Re-hosted unchanged inside the content area. Creating players, promoting accounts and
+      moderating ratings live here.
+    </p>`;
+}
+
+function playersHTML(s) {
+  const st = STATES[s];
+  const p = selected();
+  const notice = !st.role
+    ? `<div class="notice"><b>Rating needs an account.</b> Sign in with Discord to rate players. Search and profiles stay open to everyone.</div>`
+    : st.role === 'professional'
+      ? `<div class="notice"><b>You're rating as a professional.</b> Edit your own player profile under Account.</div>`
+      : '';
+
+
+  const src = p ? (lens === 'combined' ? p.combined : p[lens]) : null;
+  const vals = CATS.map(c => {
+    const d = src ? src[c] : null;
+    const v = (d !== null && typeof d === 'object') ? d.median : d;
+    return v == null ? null : v;
+  });
+  const anyVal = vals.some(v => v != null);
+  const CX = 250, CY = 220, R = 120, LR = 158;
+  const at = (i, radius, scale = 1) => {
+    const a = -Math.PI / 2 + i * 2 * Math.PI / 5;
+    return [CX + Math.cos(a) * radius * scale, CY + Math.sin(a) * radius * scale];
+  };
+
+  const rings = [25, 50, 75, 100].map(pct =>
+    `<polygon points="${CATS.map((_, i) => at(i, R, pct / 100).map(n => n.toFixed(1)).join(',')).join(' ')}" fill="none" stroke="var(--line)"/>`
+  ).join('');
+
+  const spokes = CATS.map((_, i) =>
+    `<line x1="${CX}" y1="${CY}" x2="${at(i, R)[0].toFixed(1)}" y2="${at(i, R)[1].toFixed(1)}" stroke="var(--line-dim)"/>`
+  ).join('');
+
+  const poly = anyVal
+    ? `<polygon points="${CATS.map((_, i) => at(i, R, (vals[i] ?? 0) / 100).map(n => n.toFixed(1)).join(',')).join(' ')}"
+         fill="var(--lens)" fill-opacity=".17" stroke="var(--lens)" stroke-width="2.5" stroke-linejoin="round"/>` +
+      CATS.map((_, i) => vals[i] == null ? '' :
+        `<circle cx="${at(i, R, vals[i] / 100)[0].toFixed(1)}" cy="${at(i, R, vals[i] / 100)[1].toFixed(1)}" r="4" fill="var(--lens)"/>`).join('')
+    : '';
+
+  // label and score sit at the vertex, the way a broadcast overlay reads
+  const vertices = CATS.map((c, i) => {
+    const [x, y] = at(i, LR);
+    return `<text class="vlabel" x="${x.toFixed(0)}" y="${y.toFixed(0)}" text-anchor="middle">${c.toUpperCase()}</text>
+            <text class="vvalue" x="${x.toFixed(0)}" y="${(y + 22).toFixed(0)}" text-anchor="middle">${vals[i] == null ? '—' : Math.round(vals[i])}</text>`;
+  }).join('');
+
+  const panelN = p && lens !== 'combined' && p[lens] ? p[lens].n : null;
+  const plural = n => `${n} rating${n === 1 ? '' : 's'}`;
+  const count = lens === 'combined'
+    ? (p ? plural((p.community?.n ?? 0) + (p.professional?.n ?? 0)) + ' in total' : '')
+    : plural(panelN ?? 0);
+
+  const faction = p ? p.faction : '';
+  const initial = (p ? p.name : '?').trim()[0] || '?';
+
+  const facts = [
+    { k: 'Style', v: p && p.style ? p.style : '—' },
+    { k: 'Form', v: 'No column for this yet', missing: true },
+    { k: 'Notes', v: p && p.notes ? p.notes : '—' },
+  ].map(f =>
+    `<div class="fact${f.missing ? ' missing' : ''}">
+       <div class="k">${f.k}${f.missing ? '<span class="plannedtag">planned</span>' : ''}</div>
+       <div class="v">${esc(f.v)}</div>
+     </div>`
+  ).join('');
+
+  return `
+    ${notice}
+    <div class="rankbar" id="strip">${stripHTML()}</div>
+    <div class="profile">
+      <figure class="portrait" style="margin:0">
+        <div class="frame">${esc(initial)}</div>
+        <figcaption class="cap">
+          <span>${esc(faction)}</span>
+          <small>Photo planned</small>
+        </figcaption>
+      </figure>
+
+      <div>
+        <div class="idblock">
+          <div class="idname">${esc(p ? p.name : '—')}</div>
+          <div class="idreal">${esc(p && p.real_name ? p.real_name : '')}${p && p.real_name ? ' · ' : ''}${esc(p ? p.game : '')}</div>
+        </div>
+        ${facts}
+      </div>
+
+      <section class="ratings">
+        <header>
+          <h2>Ratings</h2>
+          <span class="n">${count}</span>
+        </header>
+        ${lensHTML()}
+        <svg class="radar" viewBox="0 0 500 440" role="img" aria-label="Ratings radar">
+          ${rings}${spokes}${poly}${vertices}
+        </svg>
+        ${anyVal ? '' : `<p class="emptyline">No ratings in this panel yet.</p>`}
+      </section>
+    </div>`;
+}
+
+function render() {
+  const st = STATES[state];
+  document.documentElement.style.setProperty('--role', st.tint);
+  document.documentElement.style.setProperty('--lens', LENSES[lens].tint);
+
+  const head = {
+    A: () => `<header class="vA-bar">
+        <div class="vA-brand">${mark(24)}<span class="wordmark">Player Atlas</span></div>
+        <div class="vA-search"><input class="search" placeholder="Search player or game" value="${esc(query)}"></div>
+        <nav class="vA-nav">${navHTML(state, 'navlink', page, false)}</nav>
+        <div class="vA-auth">${identity(state)}</div>
+      </header>`,
+
+    B: () => `<header>
+        <div class="vB-utility">
+          <div class="vB-brand">${mark(28)}<span class="wordmark">Player Atlas</span></div>
+          <p class="vB-tagline">Community and professional ratings for esports players</p>
+          <div class="vB-search"><input class="search" placeholder="Search player or game" value="${esc(query)}"></div>
+          ${identity(state)}
+        </div>
+        <nav class="vB-navrow">${navHTML(state, 'vB-tab', page, true)}</nav>
+      </header>`,
+
+    C: () => `<div class="vC-shell">
+        <nav class="vC-rail">
+          <div class="vC-brand">${mark(26)}<span class="wordmark">Player<br>Atlas</span></div>
+          <div class="vC-nav">${navHTML(state, 'vC-item', page, false).replace(/>([^<]+)<\/button>/g, '><span class="vC-dot"></span>$1</button>')}</div>
+          <div class="vC-foot">${FOOTER.map(f => `<a href="#" class="planned" aria-disabled="true" tabindex="-1">${f.label}<span class="plannedtag">planned</span></a>`).join('')}</div>
+        </nav>
+        <div class="vC-main">
+          <div class="vC-top">
+            <div class="vC-search"><input class="search" placeholder="Search player or game" value="${esc(query)}"></div>
+            <div class="vC-auth">${identity(state)}</div>
+          </div>
+          <div id="cbody"></div>
+        </div>
+      </div>`,
+  }[variant]();
+
+  if (variant === 'C') {
+    document.getElementById('app').innerHTML = head;
+    // rail variant owns its own footer, so drop the shared one from the content area
+    document.getElementById('cbody').innerHTML = pageHTML(state).replace(/<footer class="sitefoot">[\s\S]*?<\/footer>/, '');
+  } else {
+    document.getElementById('app').innerHTML = head + pageHTML(state);
+  }
+
+  document.getElementById('vlabel').textContent = variant + ' — ' + VARIANTS[variant];
+  document.getElementById('states').innerHTML = Object.entries(STATES)
+    .map(([k, v]) => `<button data-state="${k}" data-on="${k === state ? 1 : 0}">${v.label}</button>`).join('');
+
+  syncUrl();
+}
+
+function syncUrl() {
+  const u = new URL(location.href);
+  const cur = selected();
+  u.searchParams.set('variant', variant);
+  u.searchParams.set('state', state);
+  u.searchParams.set('lens', lens);
+  u.searchParams.set('page', page);
+  if (cur) u.searchParams.set('player', cur.slug); else u.searchParams.delete('player');
+  if (query) u.searchParams.set('q', query); else u.searchParams.delete('q');
+  u.searchParams.set('metric', metric);
+  if (category) u.searchParams.set('category', category); else u.searchParams.delete('category');
+  history.replaceState(null, '', u);
+}
+
+function cycle(step) {
+  const keys = Object.keys(VARIANTS);
+  variant = keys[(keys.indexOf(variant) + step + keys.length) % keys.length];
+  render();
+}
+
+document.getElementById('prev').onclick = () => cycle(-1);
+document.getElementById('next').onclick = () => cycle(1);
+document.getElementById('states').onclick = e => {
+  const b = e.target.closest('[data-state]');
+  if (b) { state = b.dataset.state; render(); }
+};
+// delegated once: #app survives every re-render
+document.getElementById('app').addEventListener('click', e => {
+  const l = e.target.closest('[data-lens]');
+  if (l) { lens = l.dataset.lens; return render(); }
+
+  const nav = e.target.closest('[data-page]');
+  if (nav) {
+    page = nav.dataset.page;
+    rateResult = null;
+    render();
+    if (page === 'leaderboard') loadBoard();
+    if (page === 'admin' && adminToken && !data.adminStats) loadAdminStats();
+    return;
+  }
+
+  if (e.target.closest('[data-admin-login]')) return adminLogin();
+  if (e.target.closest('[data-admin-drop]')) {
+    adminToken = ''; delete sessionStorage.protoAdmin; data.adminStats = null;
+    if (page === 'admin') page = 'players';
+    return render();
+  }
+  if (e.target.closest('[data-rate-submit]')) return submitRating();
+
+  const pager = e.target.closest('[data-rank]');
+  if (pager) { rankPage += pager.dataset.rank === 'next' ? 1 : -1; return renderStrip(); }
+
+  const pick = e.target.closest('[data-slug]');
+  if (pick) {
+    slug = pick.dataset.slug;
+    // a leaderboard row sets the player context and hands over to Players
+    if (pick.dataset.goto) page = pick.dataset.goto;
+    return render();
+  }
+});
+
+// leaderboard selects
+document.getElementById('app').addEventListener('change', e => {
+  const c = e.target.dataset.control;
+  if (c === 'metric') { metric = e.target.value; loadBoard(); }
+  if (c === 'category') { category = e.target.value; loadBoard(); }
+});
+
+// Typing filters the strip in place, so the search field keeps focus and caret.
+document.getElementById('app').addEventListener('input', e => {
+  // sliders update their readout in place; re-rendering would fight the drag
+  const cat = e.target.dataset.slider;
+  if (cat) {
+    const out = document.getElementById('out-' + cat);
+    if (out) out.textContent = e.target.value;
+    return;
+  }
+  if (!e.target.classList.contains('search')) return;
+  query = e.target.value;
+  rankPage = 0;
+  // full render: narrowing the result can change which player the detail shows
+  const caret = e.target.selectionStart;
+  render();
+  const again = document.querySelector('.search');
+  if (again) { again.focus(); again.setSelectionRange(caret, caret); }
+});
+
+function renderStrip() {
+  const el = document.getElementById('strip');
+  if (el) el.innerHTML = stripHTML();
+}
+addEventListener('keydown', e => {
+  if (/^(INPUT|TEXTAREA)$/.test(e.target.tagName) || e.target.isContentEditable) return;
+  if (e.key === 'ArrowLeft') cycle(-1);
+  if (e.key === 'ArrowRight') cycle(1);
+});
+
+render();
+
+// The leaderboard returns whole profiles, so one call feeds both the strip and the detail.
+// /api/players is still needed because the leaderboard drops players with no ratings yet.
+// Rank is global state: it depends on every other player, so it can only come from here.
+function loadRanked() {
+  return Promise.all([
+    fetch('/api/leaderboard?metric=combined&category=').then(r => r.json()).catch(() => ({ players: [] })),
+    fetch('/api/players').then(r => r.json()).catch(() => []),
+  ]).then(([board, all]) => {
+    const scored = (Array.isArray(board.players) ? board.players : []).map((p, i) => ({ ...p, rank: i + 1 }));
+    const seen = new Set(scored.map(p => p.slug));
+    const unrated = (Array.isArray(all) ? all : [])
+      .filter(p => !seen.has(p.slug))
+      .map(p => ({ ...p, value: null, rank: null }));
+    data.ranked = [...scored, ...unrated];
+    data.board = scored;
+    render();
+  });
+}
+
+loadRanked().then(() => {
+  if (page === 'leaderboard') loadBoard();
+  if (page === 'admin' && adminToken) loadAdminStats();
+});
+</script>
+</body>
+</html>

@@ -20,7 +20,8 @@ A lightweight full-stack esports player rating and scouting prototype. It collec
 
 | Path | Purpose |
 |---|---|
-| `public/` | Static frontend, served by Workers Assets (does not invoke the Worker) |
+| `public/index.html` | Shell, served by Workers Assets (does not invoke the Worker) |
+| `public/app/` | Frontend ES modules; the pure ones are unit-tested |
 | `src/worker.js` | API routes (`/api/*`), WebCrypto tokens, D1 queries |
 | `src/stats.js` | Pure aggregation and outlier logic (unit-tested) |
 | `migrations/` | D1 schema migrations |
@@ -108,6 +109,42 @@ Admin routes require `Authorization: Bearer <admin token>`:
 | `POST` | `/api/admin/ratings/flag` | Set `flagged` on rating `id`; marks it reviewed so auto-flagging leaves it alone |
 
 Request bodies are JSON and limited to 16 KB.
+
+## Frontend
+
+`public/index.html` is an empty shell; everything is rendered in the browser from the API by
+ES modules under `public/app/`.
+
+| Module | Holds |
+|---|---|
+| `scores.js` | Per-category scores for a panel, and radar geometry |
+| `ranking.js` | Merging the leaderboard with the full player list, filtering, paging |
+| `nav.js` | Which navigation items a session sees, and in which of three states |
+| `state.js` | The one selection object, and its mapping to and from the query string |
+| `api.js` | The only module that calls `/api`; failures arrive as `ApiError` with a status |
+| `views.js` | HTML builders — pure string functions, no DOM access |
+| `main.js` | Wiring: owns the state, listens for events, paints the document |
+
+The first four are pure and unit-tested in `test/frontend.test.js`; `npm test` covers them
+alongside the aggregation logic.
+
+Pages are `Players`, `Leaderboard`, `Rate`, `Account` and `Admin`, selected by `?page=`.
+A player is `?player=<slug>`, a search `?q=`, the radar panel `?lens=`, and the leaderboard's
+own ranking `?metric=` and `?category=`. Client-side routing with real paths is deferred;
+`state.js` is the only module that would change when it lands.
+
+Two conventions worth knowing before editing:
+
+- **Role tint versus lens tint.** `--role` colours the chrome and says who you are; `--lens`
+  colours the data and says which panel you are reading. They are never the same job.
+- **`planned` means not built yet**, and nothing else. An item a role may not use is absent
+  from the DOM rather than dimmed.
+
+A manual smoke test: the page loads with a ranked strip and a radar, and the console is
+clean. Rating a player confirms, and a second attempt reports that you have already rated
+them. Switching the radar to a panel with no ratings shows em dashes and draws no polygon.
+Entering the admin key in the footer reveals the Admin item. `localStorage.voterAtlas`
+carries the browser-local voter id; clear it to rate again.
 
 ## Checks
 
