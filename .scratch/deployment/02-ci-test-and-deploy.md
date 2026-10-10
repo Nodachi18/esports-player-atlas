@@ -2,7 +2,12 @@
 
 Status: ready-for-agent
 Source: deployment spec, Phase 2
-Blocked by: 01
+
+**Unblocked** — 01 is resolved and the Worker is live.
+
+**Worth doing soon.** `main` still carries the old Worker name and the placeholder
+`database_id`; until the deployment branch lands, a CI deploy from `main` would create a
+second Worker at the wrong hostname with an invalid database binding.
 
 ## What to build
 

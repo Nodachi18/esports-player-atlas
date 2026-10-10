@@ -8,8 +8,12 @@ Source: navigation-overhaul spec §11, README pre-production list
 `POST /api/admin/login` accepts unlimited attempts. Nothing throttles, delays or locks out.
 
 The navigation overhaul did not create this gap, but it widened the exposure: the admin key
-field now sits in the footer of every page, which advertises the endpoint to everyone rather
-than hiding it behind a tab nobody clicked.
+field now sits in the footer of every page, which advertises the endpoint rather than hiding
+it behind a tab nobody clicked.
+
+**That is no longer theoretical.** The site is live and public at
+<https://www.esports-player-atlas.workers.dev>, so the form, and the endpoint behind it, are
+reachable by anyone. This is the next thing worth doing after sign-in.
 
 What already protects it: the key must be at least 16 characters, and it is compared in
 constant time, so neither guessing nor timing is cheap. What does not protect it: anything

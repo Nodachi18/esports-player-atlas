@@ -15,6 +15,10 @@ players — the thing the claim flow exists to resolve — land in the same hole
 
 Seeding proved it: straight after adding 38 players, the leaderboard returned 2 of 40.
 
+**It is now the live site's first impression.** Production has 38 players and zero ratings,
+so <https://www.esports-player-atlas.workers.dev> opens on an empty leaderboard with a dash
+against every player. Nothing is broken; it just looks that way.
+
 ## The current workaround
 
 `buildRanking()` in `public/app/ranking.js` fetches `/api/players` as well and appends

@@ -23,7 +23,11 @@ each of which currently surprises people:
 
 ## Legal notice
 
-This is the one that is not a design question.
+This is the one that is not a design question — and it is no longer hypothetical. The site
+is **live and publicly reachable** at <https://www.esports-player-atlas.workers.dev>, so
+whatever obligations attach to a publicly accessible service operated from Germany attach
+now, not when it feels finished. `robots.txt` keeps it out of search results; it does not
+make it private.
 
 The UI is English throughout, so the label is "Legal notice" (decision 13). But a site
 operated from Germany must make provider information **easily recognisable**, and
