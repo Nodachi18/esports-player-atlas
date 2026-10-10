@@ -1,7 +1,29 @@
 # Skill: writing a D1 migration that is safe to auto-apply
 
-Status: ready-for-agent
+Status: resolved
 Source: deployment spec, accepted risk — CI applies migrations without review
+
+## Outcome — 2026-10-10
+
+`.claude/skills/d1-migrations/SKILL.md`. Model-invoked, so it fires on an edit under
+`migrations/` without anyone remembering it exists.
+
+Scope grew after [02](02-ci-test-and-deploy.md) landed: the migrate-then-deploy ordering
+moved into `npm run deploy`, so the skill covers manual deploys as well as CI.
+
+Everything it claims was run against this project first: applying from zero after
+`rm -rf .wrangler/state/v3/d1`, `d1 migrations list --remote`, and `d1 time-travel info`.
+Two things that came out of checking rather than from the ticket:
+
+- The applied-migration record lives in a `d1_migrations` table on the database, which is
+  why editing the file after the fact changes nothing.
+- Time Travel rewinds `d1_migrations` along with everything else, so a restore past a bad
+  migration re-applies it on the next deploy — and takes every rating since with it. It is
+  data recovery, not a rollback, and the skill says so.
+
+The retention window is not stated as a number: the docs search did not return one, so the
+skill tells you to run `d1 time-travel info DB` against this account instead of trusting a
+figure that may be wrong.
 
 ## Why
 

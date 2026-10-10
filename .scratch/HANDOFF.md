@@ -24,15 +24,6 @@ Plans worth reading before touching anything: [deployment/spec.md](deployment/sp
 
 ## Do this first
 
-**[deployment/04](deployment/04-migration-safety-skill.md) — the migration-safety skill.**
-CI now applies migrations on every push to `main` with nobody looking, and D1 migrations are
-forward-only, so the only possible guardrail sits at authoring time. Its scope grew when
-[02](deployment/02-ci-test-and-deploy.md) landed: the migrate-then-deploy ordering moved into
-`npm run deploy`, so a manual deploy from a laptop now mutates the schema too, and the skill
-has to cover that and not just CI.
-
-## Then, by value
-
 **[accounts/01](accounts/01-discord-oauth-sign-in.md) — Discord sign-in.** The single
 change that makes this product defensible. Until ratings are attributable, the published
 medians are decoration. Blocked by
@@ -42,6 +33,8 @@ flag-day change for live 30-day pro tokens. Step 0 of sign-in is human-only — 
 the Discord redirect URIs and storing the secrets. The redirect URI used to be a ticket of
 its own; there is no integration in the codebase for a wrong URI to break, so it is
 provisioning for sign-in rather than a defect.
+
+## Then, by value
 
 **[moderation/01](moderation/01-rate-limit-admin-login.md) — rate limiting.** The admin key
 form sits in the footer of every public page and `/api/admin/login` throttles nothing. The
