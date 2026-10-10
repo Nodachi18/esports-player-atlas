@@ -5,9 +5,12 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Esports Player Atlas</title>
 <meta name="description" content="Community and professional ratings for esports players.">
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600;700&family=Barlow+Condensed:wght@500;600;700&display=swap" rel="stylesheet">
+<!-- Belt and braces with the X-Robots-Tag header in public/_headers: a crawler that reads
+     the markup but not the headers still sees it. -->
+<meta name="robots" content="noindex, nofollow, noarchive, nosnippet">
+<!-- Served from this site, not from Google: a font request to a third party hands them the
+     visitor's IP before anything has been clicked. Nothing here contacts another origin. -->
+<link rel="stylesheet" href="/app/fonts.css">
 <link rel="stylesheet" href="/app/styles.css">
 </head>
 <body>

@@ -16,8 +16,16 @@ class HttpError extends Error {
   }
 }
 
+// `public/_headers` covers the static site, but it does not reach responses the Worker
+// builds itself — and /api/players serves the real names of real people. Same directive,
+// stated here too.
+const NOINDEX = 'noindex, nofollow, noarchive, nosnippet';
+
 const json = (status, body) =>
-  new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json', 'cache-control': 'no-store' } });
+  new Response(JSON.stringify(body), {
+    status,
+    headers: { 'content-type': 'application/json', 'cache-control': 'no-store', 'x-robots-tag': NOINDEX },
+  });
 
 export default {
   async fetch(request, env) {

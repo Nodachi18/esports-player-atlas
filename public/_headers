@@ -1,0 +1,18 @@
+# Served by Workers Assets; this file is not itself published.
+#
+# `noindex` tells a crawler not to list this site in search results. It is a *second*
+# signal: robots.txt already disallows crawling entirely, and a crawler that obeys that
+# never fetches a page and so never sees this header. The two cover different bots —
+# robots.txt stops the compliant ones from reading anything, this stops anything that
+# crawls anyway from publishing it.
+#
+# The gap neither closes: a search engine can still list a URL it only learned about from
+# a link elsewhere, because it has read neither file. Closing that means allowing the
+# crawl so the directive below can actually be read. See
+# .scratch/content-pages/02-legal-notice-private-site.md.
+#
+# `noarchive` suppresses cached copies; `nosnippet` suppresses the excerpt. Ratings here
+# are anonymous opinions about named real people, so a stale cached copy outlives any
+# removal request.
+/*
+  X-Robots-Tag: noindex, nofollow, noarchive, nosnippet

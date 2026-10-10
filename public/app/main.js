@@ -50,6 +50,9 @@ function render() {
     : state.page === 'leaderboard' ? views.leaderboardPage(data.board, state)
     : state.page === 'rate'        ? views.ratePage(selected, data.rateResult)
     : state.page === 'admin'       ? views.adminPage(data.adminStats, data.adminRatings)
+    : state.page === 'legal'       ? views.legalPage()
+    : state.page === 'privacy'     ? views.privacyPage(state)
+    : state.page === 'help'        ? views.helpPage(state)
     : views.plannedPage('Account', 'Your sign-in details, your own ratings, and editing them.');
 
   // Two tints, two meanings: the lens colours the data, the role colours the chrome.
@@ -66,7 +69,7 @@ function render() {
       ${data.error ? `<p class="result bad">${views.esc(data.error)}</p>` : ''}
       ${body}
     </main>
-    ${views.footer(session)}`;
+    ${views.footer(state, session)}`;
 
   if (restoreSearch) {
     const field = document.getElementById('search');

@@ -2,6 +2,12 @@
 # resettable browser token. Keeping it out of search results until accounts exist, so the
 # ratings here are not mistaken for anything authoritative.
 #
+# Note the interaction with the `X-Robots-Tag: noindex` in `_headers`: a crawler that obeys
+# this file never fetches a page, so it never reads that header. The two signals cover
+# different bots rather than reinforcing each other. If the goal becomes "crawl it, just do
+# not list it" — the one case neither covers is a URL a search engine learned from a link
+# elsewhere — allow the crawl here and let the header do the work.
+#
 # Delete this file to allow indexing.
 
 User-agent: *
