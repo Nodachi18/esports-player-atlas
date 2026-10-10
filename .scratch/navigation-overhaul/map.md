@@ -63,6 +63,16 @@ prototype also calls `frontend-design`. Research tickets call `research`.
     search turns that strip into the search result. Consequence to resolve in the spec: the
     leaderboard route drops players with no Ratings, so an unrated Player is invisible in a
     purely rank-ordered strip.
+17. **Player context is shared across Players, Leaderboard and Rate.** Switching Player on
+    one and navigating to another keeps that Player: the UI changes, the context does not.
+    One piece of state, not three.
+18. **Leaderboard and Rate are built at parity with the existing API**, not reinvented.
+    Leaderboard keeps metric × category; Rate keeps the five 0–100 sliders and both Panels.
+    **Compare stays planned** — `/api/compare` works but no UI has ever called it, so
+    "parity" there would mean building a feature, not re-hosting one.
+19. **Admin is entered from a globally visible key field in the footer**, as an interim
+    until Discord auth ships. On success the Admin nav item appears. The field is removed
+    once Accounts and an admin Role exist — keeping it would be a second credential path.
 
 ## Decisions so far
 
