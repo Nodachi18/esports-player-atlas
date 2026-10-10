@@ -321,9 +321,13 @@ it so routing is cheap to add later:
 
 - Keep one function mapping a route key to a rendered content area. Today it is called by a
   click handler; later by a router.
-- Nav items should be real anchors with `href` set to their eventual path, with the click
-  handler calling `preventDefault`. The paths are `/players`, `/players/<slug>`,
-  `/leaderboard`, `/rate`, `/account`, `/admin`, `/help`, `/legal`.
+- Nav items should be real anchors whose `href` **resolves today**, with the click handler
+  calling `preventDefault`. That means the query-string form while routing is deferred: an
+  anchor pointing at `/leaderboard` 404s on middle-click, ctrl-click or "copy link
+  address", because that path does not exist yet. The eventual paths are `/players`,
+  `/players/<slug>`, `/leaderboard`, `/rate`, `/account`, `/admin`, `/help`, `/legal`.
+- A planned item gets **no `href` at all**, so it cannot be focused or opened in a new tab —
+  which is how "not built yet" should behave.
 - Selection state belongs in **one object**: current page, selected Player, search query,
   lens, leaderboard metric and category. Player context (§2) is a field in it, which is what
   makes the context survive navigation. A URL can later be parsed into and serialised from
@@ -374,10 +378,20 @@ Handed on rather than answered. None of these block the build.
 
 ## Prototype
 
-`public/prototype-header.html` — throwaway, reading the live API.
-`?variant=A|B|C`, `?state=anon|community|professional|adminkey`, `?lens=`, `?page=`,
-`?player=`, `?q=`. **Delete it before deploying.** Variant A is the one specified above;
-B and C are the rejected alternatives, kept only until this spec is accepted.
+`prototype/header-variants.html`, beside this spec. Throwaway, kept as the primary source
+behind the decisions above — variant A is what shipped, B and C are the rejected
+alternatives and the record of why A won.
 
-The prototype predates §7, §8 and §11: Leaderboard, Rate and the footer admin field render
-as placeholders in it.
+It lived in `public/` while it was being judged, so it could read the live API against real
+data and real density. It was moved out once the real frontend landed: anything under
+`public/` is served by Workers Assets and would have deployed.
+
+To run it again, copy it back into `public/` temporarily — it needs `/api` on the same
+origin. `?variant=A|B|C`, `?state=anon|community|professional|adminkey`, `?lens=`, `?page=`,
+`?player=`, `?q=`.
+
+## Built
+
+The spec is implemented in `public/index.html` and `public/app/`. See the Frontend section
+of `README.md` for the module map. `ACCOUNTS_ENABLED` in `public/app/main.js` is the single
+switch that turns on §3's target-state visibility rules once accounts exist.

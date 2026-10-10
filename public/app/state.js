@@ -51,6 +51,18 @@ export function searchFromState(state) {
 }
 
 /**
+ * A real, working link to the state this change would produce.
+ *
+ * Deliberately a query string rather than the eventual `/leaderboard` path: those paths do
+ * not resolve until client-side routing lands, so an anchor pointing at one 404s on
+ * middle-click, ctrl-click, or "copy link address". When routing lands this is the only
+ * place that changes.
+ */
+export function hrefFor(state, change) {
+  return searchFromState({ ...state, ...change }) || './';
+}
+
+/**
  * Apply a change. Returns a new object; never mutates.
  * Changing what is listed resets the page index, since page 3 of a different list is
  * meaningless and silently shows the wrong players.

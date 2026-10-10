@@ -20,7 +20,8 @@ A lightweight full-stack esports player rating and scouting prototype. It collec
 
 | Path | Purpose |
 |---|---|
-| `public/` | Static frontend, served by Workers Assets (does not invoke the Worker) |
+| `public/index.html` | Shell, served by Workers Assets (does not invoke the Worker) |
+| `public/app/` | Frontend ES modules; the pure ones are unit-tested |
 | `src/worker.js` | API routes (`/api/*`), WebCrypto tokens, D1 queries |
 | `src/stats.js` | Pure aggregation and outlier logic (unit-tested) |
 | `migrations/` | D1 schema migrations |

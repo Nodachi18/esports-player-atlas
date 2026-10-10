@@ -4,6 +4,7 @@
 import { CATEGORIES, LENSES, panelScores, hasScores, ratingCount, polygonPoints, vertex } from './scores.js';
 import { pageOf } from './ranking.js';
 import { FOOTER_LINKS, VISIBILITY } from './nav.js';
+import { hrefFor } from './state.js';
 
 export const PER_PAGE = 5;
 
@@ -20,17 +21,21 @@ const inert = ' aria-disabled="true" tabindex="-1"';
 const PENTAGON = polygonPoints(44, [1, 1, 1, 1, 1], 50, 50);
 
 export function header(items, activePage, state, session) {
-  const links = items.map(item => `
-    <a class="navlink${item.visibility === VISIBILITY.planned ? ' planned' : ''}"
-       href="${item.href}" data-page="${item.key}"
-       ${item.key === activePage ? 'aria-current="page"' : ''}
-       ${item.visibility === VISIBILITY.planned ? inert : ''}>
-      ${esc(item.label)}${item.visibility === VISIBILITY.planned ? plannedTag : ''}
-    </a>`).join('');
+  // A planned item gets no href at all: an anchor without one is not focusable and cannot
+  // be opened in a new tab, which is exactly what "not built yet" should behave like.
+  const links = items.map(item => {
+    const planned = item.visibility === VISIBILITY.planned;
+    return `
+    <a class="navlink${planned ? ' planned' : ''}"
+       ${planned ? inert : `href="${hrefFor(state, { page: item.key })}"`} data-page="${item.key}"
+       ${item.key === activePage ? 'aria-current="page"' : ''}>
+      ${esc(item.label)}${planned ? plannedTag : ''}
+    </a>`;
+  }).join('');
 
   return `
     <header class="bar">
-      <a class="brand" href="/players" data-page="players">
+      <a class="brand" href="${hrefFor(state, { page: 'players' })}" data-page="players">
         <svg viewBox="0 0 100 100" aria-hidden="true"><polygon points="${PENTAGON}"/></svg>
         <span class="wordmark">Player Atlas</span>
       </a>
@@ -52,7 +57,7 @@ function authControl(session) {
 
 export function footer(session) {
   const links = FOOTER_LINKS.map(link =>
-    `<a class="planned" href="${link.href}"${inert}>${esc(link.label)}${plannedTag}</a>`).join('');
+    `<span class="planned"${inert}>${esc(link.label)}${plannedTag}</span>`).join('');
   return `<footer class="foot">${links}${adminDoor(session)}</footer>`;
 }
 
@@ -155,7 +160,7 @@ function ratingsPanel(player, scores, rated, state) {
       <div class="lens" role="group" aria-label="Panel">${lensButtons}</div>
       ${radar(scores, rated)}
       ${rated ? '' : '<p class="empty">No ratings in this panel yet.</p>'}
-      <a class="ratecta" href="/rate" data-page="rate">Rate ${esc(player.name)}</a>
+      <a class="ratecta" href="${hrefFor(state, { page: 'rate', player: player.slug })}" data-page="rate" data-slug="${esc(player.slug)}">Rate ${esc(player.name)}</a>
     </section>`;
 }
 
