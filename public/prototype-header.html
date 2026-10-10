@@ -816,8 +816,12 @@ async function submitRating() {
   :                    { kind: 'bad',  status: r.status, text: j.error || 'Rejected.' };
 
   if (r.status === 201 && j.player) {
+    // the response carries the rated player's new aggregates: redraw the radar from it now
     const i = data.ranked.findIndex(x => x.slug === j.player.slug);
-    if (i > -1) data.ranked[i] = { ...data.ranked[i], ...j.player };   // re-render from the response
+    if (i > -1) data.ranked[i] = { ...data.ranked[i], ...j.player };
+    render();
+    // but it cannot carry the new rank, which depends on every other player — refetch that
+    return loadRanked();
   }
   render();
 }
@@ -858,7 +862,7 @@ function stripHTML() {
 
   const cards = window_.map((p, i) => `
     <button class="rankcard" type="button" data-slug="${esc(p.slug)}" data-on="${cur && p.slug === cur.slug ? 1 : 0}">
-      <span class="rank">${p.value == null ? '–' : from + i + 1}</span>
+      <span class="rank">${p.rank == null ? '–' : p.rank}</span>
       <span class="rname">${esc(p.name)}</span>
       <span class="rscore">${p.value == null ? '—' : Math.round(p.value)}</span>
       <span class="rmeta">${esc(p.game)} · ${esc(p.faction)}</span>
@@ -1224,16 +1228,24 @@ render();
 
 // The leaderboard returns whole profiles, so one call feeds both the strip and the detail.
 // /api/players is still needed because the leaderboard drops players with no ratings yet.
-Promise.all([
-  fetch('/api/leaderboard?metric=combined&category=').then(r => r.json()).catch(() => ({ players: [] })),
-  fetch('/api/players').then(r => r.json()).catch(() => []),
-]).then(([board, all]) => {
-  const scored = Array.isArray(board.players) ? board.players : [];
-  const seen = new Set(scored.map(p => p.slug));
-  const unrated = (Array.isArray(all) ? all : []).filter(p => !seen.has(p.slug)).map(p => ({ ...p, value: null }));
-  data.ranked = [...scored, ...unrated];
-  data.board = scored;
-  render();
+// Rank is global state: it depends on every other player, so it can only come from here.
+function loadRanked() {
+  return Promise.all([
+    fetch('/api/leaderboard?metric=combined&category=').then(r => r.json()).catch(() => ({ players: [] })),
+    fetch('/api/players').then(r => r.json()).catch(() => []),
+  ]).then(([board, all]) => {
+    const scored = (Array.isArray(board.players) ? board.players : []).map((p, i) => ({ ...p, rank: i + 1 }));
+    const seen = new Set(scored.map(p => p.slug));
+    const unrated = (Array.isArray(all) ? all : [])
+      .filter(p => !seen.has(p.slug))
+      .map(p => ({ ...p, value: null, rank: null }));
+    data.ranked = [...scored, ...unrated];
+    data.board = scored;
+    render();
+  });
+}
+
+loadRanked().then(() => {
   if (page === 'leaderboard') loadBoard();
   if (page === 'admin' && adminToken) loadAdminStats();
 });

@@ -193,7 +193,7 @@ viewer to Players first — there is nothing to rate otherwise.
 
 | Status | Means | Show |
 |---|---|---|
-| 201 | Accepted; the updated profile comes back | Confirm, and re-render the radar from the response — do not refetch |
+| 201 | Accepted; the updated profile comes back | Confirm, and re-render the radar from the response (§8.1) |
 | 409 | Already rated this Player on this Panel | Say so plainly; this is the expected second attempt, not an error state |
 | 401 | Professional panel without a valid token | Explain that professional rating needs professional access |
 | 404 | Unknown or inactive Player | Send back to Players |
@@ -205,6 +205,27 @@ sign-in per §3. The form itself does not change.
 
 A Professional **may rate themselves**; this is deliberate. The consequence is recorded in
 the map's decision 6.
+
+### 8.1 What a 201 can and cannot refresh
+
+The response carries the rated Player's **new aggregates**, so the radar and the Rating
+count redraw from it immediately, with no second request.
+
+It does **not** carry their new `value` or their new **rank**, and it cannot: rank is
+relative to every other Player, which a single-Player response knows nothing about. A
+submission must therefore refresh the ranked list from `GET /api/leaderboard` as well, or
+the ranked strip keeps the Player's old score and old position while the detail beside it
+shows the new numbers.
+
+Do both, in this order: redraw the detail from the response so the submission feels
+immediate, then refresh the ranking in the background. A build that does only the first is
+subtly wrong in a way that is easy to miss, because the page a rater is looking at *does*
+update — only the strip above it lies.
+
+Related: **rank is a property of the Player, not a position in a list.** Carry it on the
+record when the ranking is loaded. Deriving it from the row's index breaks as soon as the
+list is filtered by search, where index 1 is whoever matched first rather than the
+top-ranked Player.
 
 ---
 
