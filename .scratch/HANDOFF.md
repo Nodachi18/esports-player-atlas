@@ -22,14 +22,9 @@ to decide.
 Plans worth reading before touching anything: [deployment/spec.md](deployment/spec.md) and
 [navigation-overhaul/spec.md](navigation-overhaul/spec.md).
 
-## Do these first, in this order
+## Do this first
 
-**1. [accounts/03](accounts/03-correct-deployed-redirect-uri.md) — fix the Discord redirect
-URI.** Minutes of work, human-only, and it must precede sign-in rather than follow it. What
-is registered today is wrong twice over: missing the Worker name *and* the account
-subdomain. It only looks harmless because no sign-in flow exists to break yet.
-
-**2. [deployment/02](deployment/02-ci-test-and-deploy.md) — CI.** Deploys are manual and
+**[deployment/02](deployment/02-ci-test-and-deploy.md) — CI.** Deploys are manual and
 nothing runs the 36 tests before one. Now unblocked: `main` matches what is deployed, so CI
 deploying from it is safe. Pair it with
 [deployment/04](deployment/04-migration-safety-skill.md): CI applies migrations
@@ -42,7 +37,10 @@ change that makes this product defensible. Until ratings are attributable, the p
 medians are decoration. Blocked by
 [accounts/02](accounts/02-token-kind-discriminator.md), which must come first: the OAuth
 `state` value is what creates the token-confusion risk, and adding the discriminator is a
-flag-day change for live 30-day pro tokens.
+flag-day change for live 30-day pro tokens. Step 0 of sign-in is human-only — registering
+the Discord redirect URIs and storing the secrets. The redirect URI used to be a ticket of
+its own; there is no integration in the codebase for a wrong URI to break, so it is
+provisioning for sign-in rather than a defect.
 
 **[moderation/01](moderation/01-rate-limit-admin-login.md) — rate limiting.** The admin key
 form sits in the footer of every public page and `/api/admin/login` throttles nothing. The
@@ -92,7 +90,8 @@ beside it shows medians — same data, visibly different numbers),
 
 ## Waiting on a human
 
-- The Discord redirect URI (step 1 above).
+- The Discord application: redirect URIs and secrets, step 0 of
+  [accounts/01](accounts/01-discord-oauth-sign-in.md).
 - `gh` is not authenticated on this machine, so pull requests have to be opened in the web
   UI until `gh auth login` is run.
 - Whether to add a payment method and gate this after all, which would reverse the public

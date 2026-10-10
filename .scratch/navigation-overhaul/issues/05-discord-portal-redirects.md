@@ -43,8 +43,8 @@ Resolved — 2026-10-10. An application exists (not finalized).
 Redirect URIs match **exactly** — no wildcards, no host or path prefixes — so every origin
 the app is opened at must be registered in its own right.
 
-**Superseded** — the host is now known and this is tracked at
-[accounts/03](../../accounts/03-correct-deployed-redirect-uri.md). The correct value is
+**Superseded** — the host is now known and registering the redirect URIs is step 0 of
+[accounts/01](../../accounts/01-discord-oauth-sign-in.md). The correct value is
 `https://www.esports-player-atlas.workers.dev/api/auth/discord/callback`. Original note
 follows.
 
