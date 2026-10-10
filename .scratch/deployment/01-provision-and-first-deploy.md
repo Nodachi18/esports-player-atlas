@@ -1,7 +1,41 @@
-# Provision Cloudflare and make the first gated deploy
+# Provision Cloudflare and make the first deploy
 
-Status: ready-for-human
+Status: resolved
 Source: deployment spec, Phase 1
+
+## Outcome — 2026-10-10
+
+Live at **https://www.esports-player-atlas.workers.dev**, serving 38 players.
+
+**It is not gated.** Cloudflare Access needed a payment method on the account even for the
+free Zero Trust tier, so steps 4, 8 and 9 below were abandoned and the deployment went
+public instead. The reversal is recorded in [spec.md](spec.md); the risks it accepts are
+listed there too.
+
+Done:
+
+- D1 `esports-player-atlas`, `a5d65c76-5b23-49d1-bf45-49383957a680`
+- Migrations `0001_init` and `0002_players` applied remotely
+- `ADMIN_KEY` and `APP_SECRET` set — verified by `/api/admin/stats` returning `403` rather
+  than the `503` an unconfigured Worker gives
+- Worker renamed `esports-player-atlas` → `app` → `www` in the dashboard, with
+  `wrangler.jsonc` following each time
+- `preview_urls: false`, set explicitly: it defaults to following `workers_dev`, which
+  would publish a second public hostname per version
+- `robots.txt` disallowing everything, since ratings cast without accounts should not be
+  indexed as fact
+
+Verified live: `www` serves the app, the API and our own `robots.txt`; the retired `app`
+hostname returns `404` for `/` and only Cloudflare's platform-level `robots.txt`.
+
+Follow-on: the real host is now known, so
+[accounts/03](../accounts/03-correct-deployed-redirect-uri.md) can be fixed —
+`https://www.esports-player-atlas.workers.dev/api/auth/discord/callback`. What is registered
+today is wrong on both counts, missing the worker name and the account subdomain.
+
+---
+
+*Original plan below, kept for the record. Steps 4, 8 and 9 did not happen.*
 
 ## Why it needs a human
 

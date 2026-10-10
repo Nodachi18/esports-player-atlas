@@ -1,7 +1,29 @@
 # Move the player roster from the seed into a migration
 
-Status: ready-for-agent
+Status: resolved
 Source: deployment spec, Phase 3
+
+## Outcome — 2026-10-10
+
+`migrations/0002_players.sql` carries the 38 players, with the Liquipedia source and
+CC BY-SA attribution moved with them and the "LOCAL DEMO DATA ONLY" framing dropped, since
+this one does reach production. `seed/demo.sql` keeps only what must stay local: the demo
+player and the public `PRO-DEMO-2026` invite, with its header rewritten to say why.
+
+Verified against the migration safety rules:
+
+- From zero into a throwaway database: 39 players, 1 invite, 0 ratings
+- Re-applying the seed changes nothing — `INSERT OR IGNORE` on a unique slug
+- Applied to a database that already held all 38 rows: no duplicates, count unchanged,
+  leaderboard still ranked the same
+- Purely additive, so the old code runs against it unchanged — the state production sits in
+  between CI's migrate and deploy steps
+
+Applied remotely as part of [01](01-provision-and-first-deploy.md); the live site serves all
+38. They have no ratings, so the leaderboard is empty and each shows a dash —
+[frontend/01](../frontend/01-unrated-players-in-ranked-views.md). `style` and `notes` are
+empty because the source list has no equivalent field —
+[player-profiles/01](../player-profiles/01-profile-image-and-form-field.md).
 
 ## Why
 
