@@ -1,0 +1,8 @@
+# This is a public prototype with disposable data: anyone can rate, and a voter id is a
+# resettable browser token. Keeping it out of search results until accounts exist, so the
+# ratings here are not mistaken for anything authoritative.
+#
+# Delete this file to allow indexing.
+
+User-agent: *
+Disallow: /

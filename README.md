@@ -2,7 +2,15 @@
 
 A lightweight full-stack esports player rating and scouting prototype. It collects ratings from a community panel and an invite-only professional panel, then publishes aggregate player profiles, radar charts, leaderboards, comparisons, and rating history.
 
-> **Status:** Prototype / early-stage project. Do not expose a public production deployment without completing the security and anti-abuse work listed below.
+> **Status:** Prototype / early-stage project.
+>
+> A public prototype runs at <https://www.esports-player-atlas.workers.dev>. It is **not** a
+> production deployment: there are no accounts yet, a voter identity is a browser token that
+> resets in two clicks, and the ratings there are therefore **disposable** rather than
+> authoritative. It is excluded from search engines for that reason.
+>
+> Do not treat it as production, and do not complete a real production deployment without
+> the security and anti-abuse work listed below.
 
 ## Features
 
