@@ -22,6 +22,10 @@
     }
   ],
   "observability": { "enabled": true },
-  "workers_dev": true
+  // The public hostname: www.esports-player-atlas.workers.dev
+  "workers_dev": true,
+  // Preview URLs default to following workers_dev, which would publish a second, public
+  // hostname per uploaded version. One environment only, so: off, explicitly.
+  "preview_urls": false
   // Secrets (not stored here): ADMIN_KEY, APP_SECRET — set with `npx wrangler secret put <NAME>`.
 }
