@@ -1,6 +1,9 @@
 {
   "$schema": "node_modules/wrangler/config-schema.json",
   "name": "esports-player-atlas",
+  // Which Cloudflare account to deploy into. An identifier, not a secret — it is recorded
+  // here so the question does not come up on every deploy.
+  "account_id": "877776dfd5a7c2cc7304cb6456115313",
   "main": "src/worker.js",
   "compatibility_date": "2026-09-01",
   // Files in public/ are served directly without invoking the Worker (free, not counted as requests).
