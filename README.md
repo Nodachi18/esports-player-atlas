@@ -81,7 +81,6 @@ npx wrangler d1 create esports-player-atlas
 Copy the printed `database_id` into `wrangler.jsonc`, then:
 
 ```bash
-npm run db:migrate:remote
 npx wrangler secret put ADMIN_KEY
 npx wrangler secret put APP_SECRET
 npm run deploy
@@ -89,7 +88,9 @@ npm run deploy
 
 The app is served at `https://esports-player-atlas.<your-subdomain>.workers.dev`. A custom domain can be attached in the Cloudflare dashboard. Do **not** run `seed/demo.sql` against the remote database; create players and invites through the admin API instead.
 
-Apply new files in `migrations/` with `npm run db:migrate:remote` before deploying code that depends on them.
+`npm run deploy` applies any pending migrations and then uploads the Worker, in that order — new code against an old schema fails immediately, so the ordering is part of the command rather than something to remember. It follows that a deploy can change the database schema, and that D1 migrations are forward-only: there is no undo. `npm run db:migrate:remote` still runs the migrations on their own, and `npm run db:migrate:local` runs them against the local database.
+
+Pushes to `main` deploy through [`.github/workflows/ci.yml`](.github/workflows/ci.yml), which runs the same command once the tests pass.
 
 ## API overview
 

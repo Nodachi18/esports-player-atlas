@@ -1,0 +1,56 @@
+# Tests run on every pull request. A push to main deploys, but only once the same run has
+# proved the merged tree green — so what ships is what was tested, not the branch that was
+# tested before merging.
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+# Nothing here writes to the repository.
+permissions:
+  contents: read
+
+# One run at a time per ref. Superseded pull request runs are worth cancelling; a main run
+# is not, because it may be midway through applying a migration and D1 migrations are
+# forward-only — a cancelled apply cannot be undone, only followed by another migration.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      # Actions are pinned by commit, not by tag: a tag can be moved to point at new code.
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
+        with:
+          node-version: 22 # package.json sets engines.node >= 22
+          cache: npm
+      - run: npm ci
+      - run: npm test
+      # Syntax-checks every module, then `wrangler deploy --dry-run`, which needs no
+      # credentials — which is why it belongs in the pull request path.
+      - run: npm run check
+
+  deploy:
+    needs: test
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      # `npm run deploy` applies pending migrations and then deploys. The ordering lives in
+      # package.json rather than here, so a deploy run from a laptop carries it too.
+      #
+      # A pull request from a fork cannot read this secret. That is correct: the deploy job
+      # is main-only regardless.
+      - run: npm run deploy
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
