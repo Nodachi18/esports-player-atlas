@@ -12,7 +12,7 @@ account even for its free tier.
 | Live | `www.esports-player-atlas.workers.dev`, Worker `www`, account `877776dfd5a7c2cc7304cb6456115313` |
 | Database | D1 `a5d65c76-5b23-49d1-bf45-49383957a680`, migrations `0001` and `0002` applied |
 | Data | 38 players, no accounts, ratings open to anyone |
-| `main` | `e95d876` — matches what is deployed, so CI can safely deploy from it |
+| `main` | deploys itself — every push runs the tests, then migrations, then `wrangler deploy` |
 
 Ratings are already arriving from whoever has found the site. They are unattributable by
 construction — a voter id is a browser token that resets in two clicks — so treat them as
@@ -24,14 +24,6 @@ Plans worth reading before touching anything: [deployment/spec.md](deployment/sp
 
 ## Do this first
 
-**[deployment/02](deployment/02-ci-test-and-deploy.md) — CI.** Deploys are manual and
-nothing runs the 36 tests before one. Now unblocked: `main` matches what is deployed, so CI
-deploying from it is safe. Pair it with
-[deployment/04](deployment/04-migration-safety-skill.md): CI applies migrations
-automatically, so the guardrail has to exist at authoring time rather than at review.
-
-## Then, by value
-
 **[accounts/01](accounts/01-discord-oauth-sign-in.md) — Discord sign-in.** The single
 change that makes this product defensible. Until ratings are attributable, the published
 medians are decoration. Blocked by
@@ -41,6 +33,8 @@ flag-day change for live 30-day pro tokens. Step 0 of sign-in is human-only — 
 the Discord redirect URIs and storing the secrets. The redirect URI used to be a ticket of
 its own; there is no integration in the codebase for a wrong URI to break, so it is
 provisioning for sign-in rather than a defect.
+
+## Then, by value
 
 **[moderation/01](moderation/01-rate-limit-admin-login.md) — rate limiting.** The admin key
 form sits in the footer of every public page and `/api/admin/login` throttles nothing. The
@@ -77,7 +71,10 @@ beside it shows medians — same data, visibly different numbers),
   and quarters that.
 - **Migrations run before the deploy**, so the *old* code briefly runs against the *new*
   schema. Additive only; removals take two releases. They are forward-only — there is no
-  rollback, which is why `wrangler rollback` saves code but not schema.
+  rollback, which is why `wrangler rollback` saves code but not schema. That ordering lives
+  in `npm run deploy`, not in the CI workflow, so **any** deploy can change the schema.
+- **CI deploys show as *deployed by unknown*** in the Cloudflare dashboard. An API token has
+  no user session behind it; that is expected, not a misconfiguration.
 - **`seed/demo.sql` must never touch production.** It holds `PRO-DEMO-2026`, published in
   this repo, exchangeable for a professional token valid 30 days on the panel weighted 2:1.
 - **Wrangler builds its asset manifest at startup.** Adding a directory under `public/`
@@ -92,6 +89,8 @@ beside it shows medians — same data, visibly different numbers),
 
 - The Discord application: redirect URIs and secrets, step 0 of
   [accounts/01](accounts/01-discord-oauth-sign-in.md).
+- Branch protection on `main` requiring the `test` check. CI reports a red check on a
+  failing pull request but cannot block the merge without it — GitHub settings, not code.
 - `gh` is not authenticated on this machine, so pull requests have to be opened in the web
   UI until `gh auth login` is run.
 - Whether to add a payment method and gate this after all, which would reverse the public

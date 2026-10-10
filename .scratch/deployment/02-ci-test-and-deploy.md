@@ -1,10 +1,27 @@
 # CI: test on every PR, deploy on main
 
-Status: ready-for-agent
+Status: resolved
 Source: deployment spec, Phase 2
 
-**Unblocked** — 01 is resolved, the Worker is live, and `main` now carries the deployed
-configuration, so CI deploying from it goes to the right place.
+## Outcome — 2026-10-10
+
+Built, merged as PR #3, and proven on both paths. The pull request run went green with the
+deploy job skipped; the merge to `main` applied migrations and deployed, printing version
+`20dac74f-8372-4bae-b473-697a22a4523e`.
+
+Two things that were uncertain when this was written, now settled:
+
+- **`wrangler d1 migrations apply` does not block on a prompt in CI.** It printed
+  `No migrations to apply!` and exited cleanly on a non-TTY. This was the one claim that
+  could not be checked from a developer machine.
+- **An API-token deploy shows as *deployed by unknown*** in the Cloudflare dashboard. There
+  is no user session behind the token for Cloudflare to attribute, so that is expected
+  rather than a misconfiguration. An OAuth deploy from a laptop still shows the operator.
+
+**Outstanding, human-only:** branch protection on `main` requiring the `test` check. The
+workflow reports a red check on a failing pull request, but nothing *blocks* the merge until
+that rule exists, so half of the done-when below is not yet true. Tracked in
+[../HANDOFF.md](../HANDOFF.md) under what is waiting on a human.
 
 ## What to build
 
