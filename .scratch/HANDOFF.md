@@ -30,6 +30,10 @@ closed issues, prototype — is deliberately left that way rather than kept curr
 claim against the code before building on it; several pages it calls `planned` are built,
 and one footer link it never mentions exists.
 
+One plan *is* current: [admin-player-crud/map.md](admin-player-crud/map.md), charted
+2026-10-11 and still open. It is a live map with a frontier, not a record of a finished
+argument.
+
 ## Do this first
 
 **[accounts/01](accounts/01-discord-oauth-sign-in.md) — Discord sign-in.** The single
@@ -58,7 +62,12 @@ for a wrong URI to break, so it is provisioning for sign-in rather than a defect
 
 **[moderation/01](moderation/01-rate-limit-admin-login.md) — rate limiting.** The admin key
 form sits in the footer of every public page and `/api/admin/login` throttles nothing. The
-key itself still holds, but the form advertises the endpoint to the open internet.
+key itself still holds, but the form advertises the endpoint to the open internet. **Its
+stakes are about to rise**: admin-player-crud adds an irreversible cascading delete behind
+that login, which turns a guessed key from "can flag ratings and mint invites" into "can
+destroy the roster". Whether the delete waits for this is
+[admin-player-crud/04](admin-player-crud/issues/04-destructive-routes-and-rate-limiting.md),
+an open ticket on that map rather than a decision made here.
 
 **[frontend/01](frontend/01-unrated-players-in-ranked-views.md) — unrated players.** The
 leaderboard route drops anyone with no ratings, and only 3 of the 38 have any, so the public
@@ -66,9 +75,23 @@ site currently opens showing **3 players**. Worse than "nearly empty" as previou
 and arguably worth doing before the two above it: it is the first thing every visitor sees,
 and it also hides newly created players from the admin who just made them.
 
+**[admin-player-crud](admin-player-crud/map.md) — the admin can create players and nothing
+else.** `POST /api/admin/players` creates; there is no update and no delete anywhere in the
+API, so a typo in a name is permanent and the Admin page renders only stats and a ratings
+table. Charted as a wayfinder map on 2026-10-11, destination a handoff spec plus one
+migration. **Three tickets are on the frontier and takeable now**:
+[01 layout](admin-player-crud/issues/01-admin-page-layout.md) (prototype),
+[02 migration shape](admin-player-crud/issues/02-migration-shape.md), and
+[04](admin-player-crud/issues/04-destructive-routes-and-rate-limiting.md) above. Delete was
+decided as a **hard** delete, against the recommendation on the map — it cascades to that
+player's ratings and nothing restores them, so the typed-slug guard is the only line of
+defence there is. Needs no accounts, so it does not queue behind sign-in.
+
 Lower: [stats/01](stats/01-history-means-vs-medians.md) (history shows means while the radar
 beside it shows medians — same data, visibly different numbers),
-[player-profiles/01](player-profiles/01-profile-image-and-form-field.md),
+[player-profiles/01](player-profiles/01-profile-image-and-form-field.md) (narrowed
+2026-10-11 to the image and the rights question under it; its Form column and admin editing
+moved onto the map above, and the filename is now stale),
 [frontend/02](frontend/02-header-row-overflow.md),
 [frontend/03](frontend/03-compare-up-to-four-players.md).
 
@@ -107,7 +130,11 @@ beside it shows medians — same data, visibly different numbers),
   on any, because a third-party request falsifies the privacy page. This will bite
   [player-profiles/01](player-profiles/01-profile-image-and-form-field.md) first: the
   obvious way to give 38 Liquipedia players a photo is to hotlink Liquipedia, and that is
-  the one thing the test forbids. Images have to be served from here. Same reason the
+  the one thing the test forbids. Images have to be served from here. **The test has a blind
+  spot**, found while charting admin-player-crud: it greps *source files*, so an
+  `<img src="${player.image_url}">` built from a database value passes it while breaking
+  precisely what it protects. A same-origin assertion on rendered output has to ship with
+  any image feature. Same reason the
   typefaces live in `public/fonts/` — `OFL.txt` stays with them, the licence requires it.
 - **`noindex` lives in three places** — `public/_headers` for static responses, the
   Worker's `json()` for the API, and a `<meta>` in `index.html` — because Workers Assets
