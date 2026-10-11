@@ -98,7 +98,7 @@ Pushes to `main` deploy through [`.github/workflows/ci.yml`](.github/workflows/c
 |---|---|---|
 | `GET` | `/api/health` | Health check |
 | `GET` | `/api/games` | Games with player counts |
-| `GET` | `/api/players?q=&game=` | Search/list players |
+| `GET` | `/api/players?q=&game=` | Search/list players, each with a `ratings` count (flagged included) |
 | `GET` | `/api/players/:slug` | Player profile and aggregates |
 | `GET` | `/api/leaderboard?metric=&category=` | Aggregate rankings (`metric`: combined, community, professional) |
 | `GET` | `/api/history?player=:slug` | Daily rating averages |
@@ -113,11 +113,23 @@ Admin routes require `Authorization: Bearer <admin token>`:
 |---|---|---|
 | `GET` | `/api/admin/stats` | Totals and daily counts |
 | `GET` | `/api/admin/ratings` | Latest 1000 ratings |
-| `POST` | `/api/admin/players` | Create a player (`name`, `game`, optional `slug`, `real_name`, `faction`, `style`, `notes`) |
+| `POST` | `/api/admin/players` | Create a player (`name` and `game` required; optional `real_name`, `faction`, `style`, `form`, `notes`). The slug is derived from `name` by the server; one sent in the body is ignored |
+| `PUT` | `/api/admin/players/:slug` | Replace a player's editable fields. Full replace, not a patch: an absent field is written as `''`. Always moves `updated_at` |
+| `DELETE` | `/api/admin/players/:slug` | Delete a player, their ratings and their cached aggregates. No body. Returns `{slug, ratings}`, the number destroyed |
 | `POST` | `/api/admin/pro-invites` | Create an invite (optional `code`, `label`); returns the code once |
 | `POST` | `/api/admin/ratings/flag` | Set `flagged` on rating `id`; marks it reviewed so auto-flagging leaves it alone |
 
 Request bodies are JSON and limited to 16 KB.
+
+`POST` and `PUT` on a player reject rather than truncate: over-length is `400` naming the
+field and its limit, a handle already taken (case-insensitively) is `409`, and an unknown
+slug is `404`. The caps are `name` 80, `real_name` 120, `game` 80, `faction` 80, and 250
+each for `style`, `form` and `notes`; they live in `src/players.js` and in the form's
+`maxlength`, because SQLite `TEXT` is unbounded.
+
+`POST /api/admin/login` is rate limited to 5 **failed** attempts per 60 seconds per
+`CF-Connecting-IP`, answering `429`. A correct key never spends budget, and a request with
+no such header is not limited at all.
 
 ## Frontend
 

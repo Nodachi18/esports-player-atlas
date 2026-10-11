@@ -23,7 +23,7 @@
 -- therefore a no-op in the expected case and the safety net in the unexpected one. It is
 -- not a second delete path and it changes no behaviour that currently works.
 
-CREATE TRIGGER players_delete_cascade_ratings AFTER DELETE ON players
+CREATE TRIGGER players_delete_cascade AFTER DELETE ON players
 BEGIN
   DELETE FROM ratings WHERE player_id = OLD.id;
   DELETE FROM player_stats WHERE player_id = OLD.id;

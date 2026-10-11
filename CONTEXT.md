@@ -62,6 +62,24 @@ editorial judgement made by whoever edits the Player, never derived from Ratings
 any score. A Player with no Ratings can still have a Form.
 _Avoid_: Streak, standing, rank
 
+**Selection**:
+The Player currently being looked at or edited, carried in the URL as `?player=` and
+shared by every page. Not to be confused with `players.active`, a vestigial column meaning
+"not retired" — the phrase "active player" is ambiguous here and is avoided.
+_Avoid_: Current player, active player, focus
+
+**Handle**:
+A Player's competitive name — the `name` column, and what the admin form labels. Unique
+across the roster, case-insensitively, because it is how a Player is found and picked.
+Distinct from their real name and from their slug.
+_Avoid_: Nickname, alias, gamertag
+
+**Slug**:
+A Player's public address, derived from their Handle by the server when they are created
+and never afterwards. It is in every link ever shared, so it does not change — and typing
+it is the only confirmation accepted before a Player is deleted.
+_Avoid_: ID, permalink, handle
+
 **Flagged**:
 A Rating marked as a statistical outlier, automatically or by an Admin. A review signal,
 never proof of manipulation.

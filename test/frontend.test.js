@@ -6,6 +6,7 @@ import { buildRanking, filterPlayers, pageOf, resolveSelection } from '../public
 import { navigation, isReachable, FOOTER_LINKS, VISIBILITY } from '../public/app/nav.js';
 import { stateFromSearch, searchFromState, update, DEFAULT_STATE } from '../public/app/state.js';
 import { footer, helpPage, legalPage, privacyPage, CONTACT_CARD, CLOUDFLARE_PRIVACY } from '../public/app/views.js';
+import { canDelete, deletePrompt, formMode, formValues, resultFor } from '../public/app/playerForm.js';
 
 const panel = (n, value) => ({
   n,
@@ -413,4 +414,223 @@ test('Help says becoming a professional is not currently possible', () => {
   const html = flat(helpPage(DEFAULT_STATE));
   assert.match(html, /At the moment, nobody can/);
   assert.match(html, /no way to ask for an invite or to use one/);
+});
+
+// ---- the admin player form ----
+
+test('with no Selection the form is in create mode', () => {
+  assert.equal(formMode(null), 'create');
+});
+
+test('with a Selection the form is in edit mode', () => {
+  assert.equal(formMode({ slug: 'boxer', name: 'BoxeR' }), 'edit');
+});
+
+const boxer = {
+  slug: 'boxer', name: 'BoxeR', real_name: 'Lim Yo Hwan', game: 'StarCraft: Brood War',
+  faction: 'Terran', style: 'Mind games', form: 'Retired', notes: 'The Emperor', ratings: 12,
+};
+
+test('the create form starts empty', () => {
+  const values = formValues(null, null);
+  assert.deepEqual(Object.values(values).filter(Boolean), []);
+  assert.equal(values.name, '');
+});
+
+test('the edit form loads the Selection', () => {
+  const values = formValues(boxer, null);
+  assert.equal(values.name, 'BoxeR');
+  assert.equal(values.form, 'Retired');
+});
+
+test('the form carries no column the admin may not edit', () => {
+  const values = formValues(boxer, null);
+  for (const key of ['slug', 'id', 'active', 'created_at', 'updated_at', 'ratings']) {
+    assert.equal(values[key], undefined, `${key} is not an editable field`);
+  }
+});
+
+test('a draft beats the Selection, so what was typed survives a re-render', () => {
+  const values = formValues(boxer, { slug: 'boxer', name: 'BoxeR II' });
+  assert.equal(values.name, 'BoxeR II');
+  assert.equal(values.form, 'Retired', 'untouched fields still come from the Selection');
+});
+
+test('a field cleared in the draft stays cleared', () => {
+  // `||` would quietly put the stored value back and undo the deletion.
+  const values = formValues(boxer, { slug: 'boxer', notes: '' });
+  assert.equal(values.notes, '');
+});
+
+test('a draft belonging to another Player is ignored', () => {
+  // Switching Selection discards the draft; this is what makes that true even if the
+  // caller forgets to clear it.
+  const values = formValues(boxer, { slug: 'flash', name: 'Flash' });
+  assert.equal(values.name, 'BoxeR');
+});
+
+test('Delete is unreachable without the slug typed exactly', () => {
+  for (const typed of ['', ' ', 'boxe', 'boxer ', ' boxer', 'BoxeR', 'BOXER', 'boxer-2', 'Lim Yo Hwan']) {
+    assert.equal(canDelete(typed, 'boxer'), false, `"${typed}" must not arm the delete`);
+  }
+  assert.equal(canDelete('boxer', 'boxer'), true);
+});
+
+test('the Player name is not the confirmation; only the slug is', () => {
+  assert.equal(canDelete(boxer.name, boxer.slug), false);
+});
+
+test('nothing arms a delete against a Player that is not there', () => {
+  assert.equal(canDelete('', null), false);
+  assert.equal(canDelete('boxer', null), false);
+  assert.equal(canDelete('', ''), false);
+});
+
+test('the guard names the Player and the exact number of Ratings it destroys', () => {
+  const prompt = deletePrompt(boxer);
+  assert.equal(prompt.heading, 'Delete BoxeR?');
+  assert.match(prompt.lead, /12 ratings/);
+  assert.equal(prompt.confirm, 'Delete BoxeR and 12 ratings');
+  assert.equal(prompt.cancel, 'Keep BoxeR');
+});
+
+test('one Rating is one rating, not 1 ratings', () => {
+  const prompt = deletePrompt({ ...boxer, ratings: 1 });
+  assert.match(prompt.lead, /1 rating\b/);
+  assert.equal(prompt.confirm, 'Delete BoxeR and 1 rating');
+});
+
+test('a Player with no Ratings gets a sentence of their own', () => {
+  // 31 of 38 Players have none, so without this the guard is a lie most of the time.
+  const prompt = deletePrompt({ ...boxer, ratings: 0 });
+  assert.match(prompt.lead, /no ratings yet/);
+  assert.doesNotMatch(prompt.lead, /0 ratings/);
+  assert.equal(prompt.confirm, 'Delete BoxeR');
+});
+
+test('the button never reads Confirm', () => {
+  for (const n of [0, 1, 12]) {
+    assert.doesNotMatch(deletePrompt({ ...boxer, ratings: n }).confirm, /confirm/i);
+  }
+});
+
+// Every row of the spec's "What each answer does" table.
+
+test('a created Player is reported with the slug the server minted', () => {
+  const r = resultFor({ status: 201, action: 'create', name: 'BoxeR', slug: 'boxer' });
+  assert.equal(r.tone, 'ok');
+  assert.equal(r.text, 'Created BoxeR at /boxer');
+  assert.equal(r.select, 'boxer', 'the Selection jumps to the new Player');
+  assert.equal(r.reload, true);
+});
+
+test('a save stays on the Player', () => {
+  const r = resultFor({ status: 200, action: 'save', name: 'BoxeR', slug: 'boxer' });
+  assert.equal(r.tone, 'ok');
+  assert.equal(r.text, 'Saved.');
+  assert.equal(r.select, undefined);
+  assert.equal(r.reload, true, 'a renamed Player has to reappear in the rail');
+});
+
+test('a delete clears the Selection and says what went with it', () => {
+  const r = resultFor({ status: 200, action: 'delete', name: 'BoxeR', slug: 'boxer', ratings: 12 });
+  assert.equal(r.tone, 'ok');
+  assert.equal(r.text, 'Deleted BoxeR and 12 ratings.');
+  assert.equal(r.select, null);
+  assert.equal(r.reload, true);
+});
+
+test('deleting a Player with no Ratings does not claim it deleted any', () => {
+  const r = resultFor({ status: 200, action: 'delete', name: 'BoxeR', slug: 'boxer', ratings: 0 });
+  assert.equal(r.text, 'Deleted BoxeR.');
+});
+
+test('a 400 shows the server\'s own reason and leaves the form alone', () => {
+  const r = resultFor({ status: 400, action: 'save', error: 'notes must be 250 characters or fewer' });
+  assert.equal(r.tone, 'bad');
+  assert.equal(r.text, 'notes must be 250 characters or fewer');
+  assert.equal(r.select, undefined, 'the Selection must not move');
+  assert.ok(!r.reload, 'nothing changed, so nothing is refetched');
+  assert.ok(!r.signOut);
+});
+
+test('a duplicate handle names the handle that is taken', () => {
+  const r = resultFor({ status: 409, action: 'create', name: 'Flash' });
+  assert.equal(r.tone, 'bad');
+  assert.equal(r.text, 'A player called Flash already exists.');
+  assert.equal(r.select, undefined);
+});
+
+test('a 404 lands exactly where a successful delete lands', () => {
+  const r = resultFor({ status: 404, action: 'save', name: 'BoxeR', slug: 'boxer' });
+  assert.equal(r.text, 'That player no longer exists. The roster has been reloaded.');
+  assert.equal(r.select, null);
+  assert.equal(r.reload, true);
+});
+
+test('a 401 signs the admin out rather than reporting into a form that is about to go', () => {
+  const r = resultFor({ status: 401, action: 'save' });
+  assert.equal(r.signOut, true);
+});
+
+test('an unrecognised failure still says something', () => {
+  const r = resultFor({ status: 500, action: 'save', error: 'Server error' });
+  assert.equal(r.tone, 'bad');
+  assert.equal(r.text, 'Server error');
+});
+
+// ---- the Selection round-trips from the URL into the form ----
+
+test('?page=admin&player=boxer opens the edit form holding BoxeR', () => {
+  const state = stateFromSearch('?page=admin&player=boxer');
+  const roster = [boxer, { slug: 'flash', name: 'Flash' }];
+  const selected = resolveSelection(roster, filterPlayers(roster, state.query), state.player);
+
+  assert.equal(state.page, 'admin');
+  assert.equal(formMode(selected), 'edit');
+  assert.equal(formValues(selected, null).name, 'BoxeR');
+});
+
+test('?page=admin with no player opens the create form, empty', () => {
+  const state = stateFromSearch('?page=admin');
+  assert.equal(state.player, null);
+  assert.equal(formMode(null), 'create');
+  assert.equal(formValues(null, null).name, '');
+});
+
+test('the edit link survives a round trip through the query string', () => {
+  const state = stateFromSearch('?page=admin&player=boxer');
+  assert.equal(searchFromState(state), '?page=admin&player=boxer');
+});
+
+test('a Player created now is selectable at once, with no ratings and no rank', () => {
+  // The ranked strip drops unrated Players, so the admin roster lists from /api/players.
+  // Without this a Player is unselectable the moment an admin creates one.
+  const created = { slug: 'newcomer', name: 'Newcomer', ratings: 0 };
+  const ranking = buildRanking([boxer], [boxer, created]);
+
+  const found = resolveSelection(ranking, filterPlayers(ranking, 'newcomer'), 'newcomer');
+  assert.equal(found.slug, 'newcomer');
+  assert.equal(found.rank, null);
+  assert.equal(formMode(found), 'edit');
+  assert.equal(formValues(found, null).name, 'Newcomer');
+});
+
+test('a request that never reached the server is not a success', () => {
+  // api.js throws ApiError(0, 'Cannot reach the server.') when fetch itself fails. Status
+  // 0 is below every error branch, so it used to fall through to the success tail and
+  // report "Saved." in green over a save that never happened.
+  for (const action of ['create', 'save', 'delete']) {
+    const r = resultFor({ status: 0, action, name: 'BoxeR', error: 'Cannot reach the server.' });
+    assert.equal(r.tone, 'bad', `${action} must not report success`);
+    assert.equal(r.text, 'Cannot reach the server.');
+    assert.equal(r.select, undefined, 'the Selection must not move on a request that never landed');
+    assert.ok(!r.reload);
+  }
+});
+
+test('only 200 and 201 are success', () => {
+  for (const status of [0, 302, 418, 500, 502, 503]) {
+    assert.equal(resultFor({ status, action: 'save', error: 'nope' }).tone, 'bad');
+  }
 });

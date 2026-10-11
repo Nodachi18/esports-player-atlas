@@ -2,11 +2,12 @@
 // Static files in public/ are served by Workers Assets; this Worker only sees /api/* and unmatched paths.
 
 import { CATEGORIES, summarize, outlierIds, combine, categoryScores, overall } from './stats.js';
+import { validatePlayerInput } from './players.js';
 
 const VERSION = '4.0';
 const MAX_BODY_BYTES = 16 * 1024;
 const PRO_TOKEN_TTL = 30 * 864e5, ADMIN_TOKEN_TTL = 8 * 36e5;
-const PLAYER_COLUMNS = 'id,slug,name,real_name,game,faction,style,notes,created_at';
+const PLAYER_COLUMNS = 'id,slug,name,real_name,game,faction,style,form,notes,created_at';
 const SCORE_COLUMNS = CATEGORIES.join(',');
 
 class HttpError extends Error {
@@ -52,16 +53,23 @@ async function route(request, env, url) {
 
   if (method === 'GET' && path === '/api/players') {
     const search = q.get('q') || '', game = q.get('game') || '', args = [];
-    let sql = 'select id,slug,name,real_name,game,faction,style,notes from players where active=1';
+    // `ratings` counts every row including flagged ones, because a delete cascades to
+    // those too. Deliberately not the same number as community.n/professional.n, which
+    // exclude flagged rows — one flat count, from one place, serving the admin roster
+    // rail, the form's read-only cell and the delete guard alike.
+    let sql = `select p.id,p.slug,p.name,p.real_name,p.game,p.faction,p.style,p.form,p.notes,
+                      count(r.id) ratings
+               from players p left join ratings r on r.player_id=p.id
+               where p.active=1`;
     if (search) {
-      sql += ' and (name like ?1 or real_name like ?1 or game like ?1)';
+      sql += ' and (p.name like ?1 or p.real_name like ?1 or p.game like ?1)';
       args.push('%' + search + '%');
     }
     if (game) {
-      sql += ` and game=?${args.length + 1}`;
+      sql += ` and p.game=?${args.length + 1}`;
       args.push(game);
     }
-    return json(200, await all(db.prepare(sql + ' order by name').bind(...args)));
+    return json(200, await all(db.prepare(sql + ' group by p.id order by p.name').bind(...args)));
   }
 
   if (method === 'GET' && path.startsWith('/api/players/')) {
@@ -106,8 +114,22 @@ async function route(request, env, url) {
 
   if (method === 'POST' && path === '/api/admin/login') {
     const { key } = await readJson(request);
-    if (!await isAdminKey(env, key)) return json(401, { error: 'Invalid admin key' });
-    return json(200, { token: await signToken(env, { role: 'admin', exp: Date.now() + ADMIN_TOKEN_TTL }) });
+    // The success path returns first, so .limit() is only ever reached by a failed
+    // attempt: a correct key never spends budget and an attacker spends it every time.
+    // Written the other way round the 429 would sit between the 401 and its own
+    // condition, and would throttle the admin as readily as the attacker.
+    if (await isAdminKey(env, key)) {
+      return json(200, { token: await signToken(env, { role: 'admin', exp: Date.now() + ADMIN_TOKEN_TTL }) });
+    }
+    // Keyed on CF-Connecting-IP because the edge sets it and a client cannot suppress it.
+    // Absent only under `wrangler dev`, where this fails open: a constant fallback key
+    // would give every header-less caller one shared bucket, which anyone could exhaust
+    // to lock the admin out of their own site.
+    const ip = request.headers.get('CF-Connecting-IP');
+    if (ip && !(await env.LOGIN_LIMIT.limit({ key: ip })).success) {
+      return json(429, { error: 'Too many attempts. Please try again shortly.' });
+    }
+    return json(401, { error: 'Invalid admin key' });
   }
 
   if (path.startsWith('/api/admin/')) {
@@ -143,13 +165,35 @@ async function adminRoute(request, env, method, path) {
   }
 
   if (method === 'POST' && path === '/api/admin/players') {
-    const b = await readJson(request);
-    const name = text(b.name, 80), game = text(b.game, 80);
-    if (!name || !game) return json(400, { error: 'name and game are required' });
-    const slug = await uniqueSlug(db, b.slug || name);
-    await db.prepare('insert into players(slug,name,real_name,game,faction,style,notes) values(?,?,?,?,?,?,?)')
-      .bind(slug, name, text(b.real_name, 120), game, text(b.faction, 80), text(b.style, 200), text(b.notes, 1000)).run();
+    const check = validatePlayerInput(await readJson(request));
+    if (!check.ok) return json(check.status, { error: check.error });
+    const v = check.values;
+
+    // The slug comes from the name and from nothing else. It is the Player's public
+    // address and sits in every link ever shared, so a client that could supply one
+    // could mint an address for a Player it does not own.
+    const slug = await uniqueSlug(db, v.name);
+    try {
+      // created_at and updated_at are written in one statement rather than left to the
+      // column default: SQLite evaluates CURRENT_TIMESTAMP once per statement, so the
+      // two are identical instead of a microsecond apart.
+      await db.prepare(
+        `insert into players(slug,${EDITABLE_COLUMNS},created_at,updated_at)
+         values(?,?,?,?,?,?,?,?,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP)`,
+      ).bind(slug, ...editableValues(v)).run();
+    } catch (e) {
+      if (isUniqueViolation(e)) return json(409, { error: `A player called ${v.name} already exists` });
+      throw e;
+    }
     return json(201, (await profiles(db, [slug]))[0]);
+  }
+
+  if (path.startsWith('/api/admin/players/') && (method === 'PUT' || method === 'DELETE')) {
+    const slug = decodeURIComponent(path.slice('/api/admin/players/'.length));
+    if (!slug) return json(404, { error: 'Player not found' });
+    return method === 'PUT'
+      ? updatePlayer(db, slug, await readJson(request))
+      : deletePlayer(db, slug);
   }
 
   if (method === 'POST' && path === '/api/admin/pro-invites') {
@@ -175,6 +219,62 @@ async function adminRoute(request, env, method, path) {
   }
 
   return json(404, { error: 'Not found' });
+}
+
+/**
+ * A full replace, not a patch: an absent field is written as '', never read as
+ * "unchanged". A partial update would make it impossible to clear a field, and the API
+ * would have to guess which of the two an empty string meant.
+ *
+ * updated_at moves on every call, including one that changes nothing. One UPDATE, no
+ * read-back and no diff — "the admin pressed Save" is the event worth recording, and
+ * deciding whether anything really changed costs a read to answer a question nobody asked.
+ *
+ * Does not filter `active`: the column is vestigial and nothing writes it, so filtering on
+ * it here would make a Player unreachable for reasons no one could see.
+ */
+async function updatePlayer(db, slug, body) {
+  const check = validatePlayerInput(body);
+  if (!check.ok) return json(check.status, { error: check.error });
+  const v = check.values;
+
+  let result;
+  try {
+    result = await db.prepare(
+      `update players set ${EDITABLE_COLUMNS.split(',').map(column => `${column}=?`).join(',')},
+              updated_at=CURRENT_TIMESTAMP
+       where slug=?`,
+    ).bind(...editableValues(v), slug).run();
+  } catch (e) {
+    if (isUniqueViolation(e)) return json(409, { error: `A player called ${v.name} already exists` });
+    throw e;
+  }
+  if (!result.meta.changes) return json(404, { error: 'Player not found' });
+
+  // The response is what the form repaints from: the server's row, not the client's
+  // optimism about what it just sent.
+  return json(200, (await profiles(db, [slug]))[0]);
+}
+
+/**
+ * A hard delete. The row goes, and the Player's Ratings and their cached aggregates in
+ * player_stats go with it — through ON DELETE CASCADE and, on any connection where
+ * foreign keys are not enforced, through the trigger in 0005.
+ *
+ * No body and no `confirm` echo: typing the slug is a UI mechanic, and an API that
+ * accepted its own confirmation would be confirming nothing.
+ */
+async function deletePlayer(db, slug) {
+  const player = await db.prepare('select id from players where slug=?').bind(slug).first();
+  if (!player) return json(404, { error: 'Player not found' });
+
+  // Counted in the same batch as the delete and before it, so the number reported is the
+  // number removed. Flagged rows included: the cascade takes those too.
+  const [count] = await db.batch([
+    db.prepare('select count(*) n from ratings where player_id=?').bind(player.id),
+    db.prepare('delete from players where id=?').bind(player.id),
+  ]);
+  return json(200, { slug, ratings: count.results[0].n });
 }
 
 async function submitRating(env, b) {
@@ -258,6 +358,18 @@ async function readJson(request) {
   throw new HttpError(400, 'Invalid JSON body');
 }
 
+// Written in the order the INSERT and UPDATE above bind them.
+const EDITABLE_COLUMNS = 'name,real_name,game,faction,style,form,notes';
+const editableValues = v => EDITABLE_COLUMNS.split(',').map(column => v[column]);
+
+/**
+ * D1 surfaces a constraint failure as a message, not a code. Both the unique index on
+ * `name` and the one on `slug` land here; only `name` is reachable, because the slug is
+ * derived by uniqueSlug() which has already looked.
+ */
+const isUniqueViolation = e => String(e.message).includes('UNIQUE');
+
+/** Still used for values no user typed. Everything an admin types goes through players.js. */
 function text(value, max) {
   return String(value ?? '').trim().slice(0, max);
 }

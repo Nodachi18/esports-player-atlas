@@ -617,6 +617,58 @@ a test rather than a `curl`; what is left is explicitly marked manual.
 - (10)–(12) checked by hand against a local database and the result stated.
 - `public/prototype/` absent from the branch that merges.
 
+## Built — 2026-10-12
+
+Recorded here because the spec asks for it: four of these are the only evidence the
+feature will have until something boots the Worker in CI.
+
+| Done-when | Result |
+|---|---|
+| Four migrations under `migrations/` | ✅ moved; apply from zero clean, 38 rows backfilled, trigger and unique index present |
+| `d1-migrations` checklist | ✅ all five steps, including **step 4** — the previous release run against the new schema |
+| `npm test` | ✅ 99 tests, including `test/players.test.js` and 25 new in `test/frontend.test.js` |
+| The six `curl`s | ✅ `401 401 401 401 401 429`, then the **real key `200` in the same minute** |
+| (10) `409` on create *and* rename | ✅ both, case-insensitively |
+| (11) `PUT` moves `updated_at` | ✅ including a PUT that changes nothing |
+| (12) cascade leaves zero rows | ✅ 3 ratings (one Flagged) + 1 `player_stats` row → 0 and 0; the route reported `ratings: 3` |
+| `public/prototype/` absent | ✅ it is on `prototype/admin-page-layout` only |
+
+### Four things the build found that this spec had wrong or did not know
+
+1. **The `ratelimit` binding works under `wrangler dev`.** The spec called it undocumented
+   and asked the build session to check. It works — and `wrangler dev` **supplies
+   `CF-Connecting-IP`**, so the fail-open branch is not what you hit locally and the
+   limiter throttles a local login like any other. No design change; the note that it is
+   unverified is now wrong and this replaces it.
+2. **`meta.changes` counts matched rows, not differing rows.** The `PUT`'s `404` branch
+   rests on it, so three identical `PUT`s inside the same second were checked: all `200`.
+   The branch cannot misfire on a Player whose values did not change.
+3. **The public profile contradicted the schema.** `playerDetail` rendered Form as
+   `planned` with *No column for this yet*, which `0003` makes false — and in this repo
+   `planned` means not built yet and nothing else. It now renders the real value. Not in
+   this spec's scope as written; shipping without it would have published a lie.
+4. **The pre-flight `0006` asks for is still clean.** Re-run against production on
+   2026-10-12: 38 Players, 38 distinct case-folded handles, so the rename is a no-op and
+   the unique index cannot fail on apply.
+
+### Where the implementation knowingly differs
+
+- **The delete guard is `showModal()`, not `<dialog open>`.** The spec says "a modal", and
+  a dialog rendered open is not one: no backdrop, no focus trap, the page behind still
+  clickable. Escape is now native, and closing by any means reads as "keep this Player".
+- **`resultFor` takes an options object**, not the sketch's `(status, player)`. The answer
+  table is keyed on *(status, action)* — `200` is both a save and a delete — and `409`
+  needs the typed handle while `400` needs the server's own message.
+- **`playerForm.js` also exports `CAPS`, `FIELDS` and `deletePrompt`.** The caps are the
+  inputs' `maxlength` and cannot be imported from `src/`, so they are duplicated the way
+  `CATEGORIES` already is — with a test asserting the two copies are identical, which the
+  existing pair does not have.
+- **`/api/players` joining `ratings` sits against `0001_init.sql:41`**, "Public read routes
+  only touch this table, which keeps D1 rows-read low". The join is what decision 03 asked
+  for and the cost is negligible at 38 Players, but it is a documented invariant bent on a
+  public route, and it makes Flagged-inclusive counts public. Worth revisiting if the
+  roster grows.
+
 ## Out of Scope
 
 Named so a build session does not rediscover them as gaps.
