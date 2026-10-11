@@ -74,6 +74,15 @@ on this map depends on a fact from outside this working directory.
 
 <!-- one line per closed ticket, then follow the link for the detail it holds -->
 
+- **The admin page is a roster rail beside the form.** The header search filters the rail,
+  "New player" is a pinned row at its head, the stat cards shrink to a totals line and the
+  global ratings table stays at the bottom unchanged, joined by a per-player disclosure
+  under the form. Mode is shown three ways because decision 4 derives it from state. The
+  delete guard is a modal; the create form shows the slug, and its collision suffix, before
+  the click. Three layouts were built and two rejected —
+  [01](issues/01-admin-page-layout.md), prototype and six follow-up tickets in
+  [issues/01-admin-page-layout/](issues/01-admin-page-layout/).
+
 ## Not yet specified
 
 - **How Players arrive in bulk.** Today the roster is a seed migration (`0002_players.sql`,
