@@ -281,8 +281,12 @@ export function ratePage(player, result) {
 export function adminPage(stats, ratings) {
   if (!stats) return `<div class="block"><b>Admin</b><span>Loading…</span></div>`;
   const totals = stats.totals || {};
-  const cards = [['players', totals.players], ['ratings', totals.ratings], ['flagged', totals.flagged]]
-    .map(([label, value]) => `<div class="stat"><b>${value || 0}</b><span>${label}</span></div>`).join('');
+  // `rated` is the interesting one while most of the roster has no ratings at all: it is
+  // the same gap the leaderboard has, said as a number an admin can watch move.
+  const cards = [
+    ['players', totals.players], ['rated', totals.rated],
+    ['ratings', totals.ratings], ['flagged', totals.flagged],
+  ].map(([label, value]) => `<div class="stat"><b>${value || 0}</b><span>${label}</span></div>`).join('');
 
   const table = !ratings ? '<button class="btn ghost" type="button" data-admin-ratings>Load ratings</button>' : `
     <table class="admintable">
