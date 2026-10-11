@@ -56,6 +56,12 @@ A Player's score across both Panels, weighting the professional median higher th
 community median. A configurable product choice, not an objective measure.
 _Avoid_: Overall, total, final score
 
+**Form**:
+A Player's recent competitive standing, written as free text — "Top ~50, inconsistent". An
+editorial judgement made by whoever edits the Player, never derived from Ratings or from
+any score. A Player with no Ratings can still have a Form.
+_Avoid_: Streak, standing, rank
+
 **Flagged**:
 A Rating marked as a statistical outlier, automatically or by an Admin. A review signal,
 never proof of manipulation.
