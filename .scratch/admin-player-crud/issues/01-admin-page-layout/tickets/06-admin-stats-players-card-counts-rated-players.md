@@ -1,7 +1,7 @@
 # The admin "players" card counts rated players, not players
 
 Type: task
-Status: open
+Status: resolved
 Blocked by: —
 Map: ../../../map.md
 Found by: ../prototype.md
@@ -46,3 +46,23 @@ gap [frontend/01](../../../../frontend/01-unrated-players-in-ranked-views.md) is
 
 `test/` has no coverage of `/api/admin/stats`. A test asserting the players total matches
 the roster size is what stops this coming back.
+
+## Answer
+
+Fixed on branch **`admin-stats-player-count`** (`b9346c0`, branched from `main` because
+this is independent of the map). Not merged, not pushed.
+
+`players` comes from `select count(*) from players where active=1`. The distinct-player
+count is kept as `rated` and the admin page shows four cards instead of three — with 3 of
+38 rated, `rated` is the more interesting number, and it is the same gap
+[frontend/01](../../../../frontend/01-unrated-players-in-ranked-views.md) is about.
+
+**No test, and the reason is worth recording**: `test/` covers only the pure modules
+(`src/stats.js`, `public/app/*`). There is no Worker or D1 harness, so no test in this
+repo can assert the result of a SQL query. Verified by hand against the local Worker with
+one rating in the database so the two counts could not coincide — `players: 39`,
+`rated: 1`, against `/api/players` returning 39. Before the change the same call returned
+`players: 0`.
+
+That gap is general: every route in `src/worker.js` is untested. Worth its own ticket if
+the API keeps growing, and this map adds two routes to it.
