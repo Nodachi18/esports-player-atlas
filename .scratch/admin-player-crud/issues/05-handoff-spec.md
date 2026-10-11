@@ -2,7 +2,7 @@
 
 Type: task
 Status: open
-Blocked by: 01, 02, 03, 04
+Blocked by: — (was 01, 02, 03, 04; all resolved 2026-10-12)
 Map: ../map.md
 
 ## Question
@@ -41,6 +41,14 @@ It has to carry:
 - The preconditions, if `04` set any. **03 set none**: the cascade question it raised was
   resolved in the schema rather than left as a gate
   ([03/tickets/02](03-form-behaviour-contract/tickets/02-prove-the-cascade-is-enforced.md)).
+  **04 set none either, and instead handed over a section.**
+  [04-destructive-routes-and-rate-limiting/rate-limit.md](04-destructive-routes-and-rate-limiting/rate-limit.md)
+  is a new part of `spec.md` — the rate limit on `POST /api/admin/login`, which this map now
+  carries rather than waiting on
+  [moderation/01](../../moderation/01-rate-limit-admin-login.md) for. Fold it in the way
+  [contract.md](03-form-behaviour-contract/contract.md) is folded in, and carry its
+  "Ordering" line: if the build session splits this across pull requests, the limiter goes
+  in the first one.
 - That the cascade reaches **`player_stats` as well as `ratings`** (03) — decision 2 only
   ever named `ratings` — and that it holds **regardless of foreign key enforcement**,
   because `0005` backs it with a trigger. The spec should say why that trigger exists, or a
@@ -94,3 +102,37 @@ them:
 [04](04-destructive-routes-and-rate-limiting.md), the last open decision on the map. 03
 touched it without deciding it — the rejected body-`confirm` means the delete route has no
 second factor at all, so 04's exposure arrives undiluted.
+
+**2026-10-12** — [04](04-destructive-routes-and-rate-limiting.md) resolved. **It was the
+last open dependency; this ticket is unblocked and the map's frontier is empty.**
+
+- **The spec grows a section it did not expect to have.**
+  [04/rate-limit.md](04-destructive-routes-and-rate-limiting/rate-limit.md) is written as
+  spec input, not as an argument — binding, `wrangler.jsonc` config, the ten-line code
+  shape, and the three endpoints deliberately left unlimited. `POST /api/admin/login` only,
+  keyed on `CF-Connecting-IP`, failing open, counting failed attempts alone, 5 per 60s,
+  `429`. **No precondition, no sequencing**: it ships in the same build session as the
+  delete.
+- **The map's "no admin code is written in this map" rule is intact but its scope widened.**
+  Say so in the spec's scope note, or the rate-limit section reads as a stray.
+- **Decision 2's "irreversibly" is amended on the map** and the correction belongs in the
+  spec too: `wrangler rollback` restores code and never rows, but **D1 Time Travel** gives
+  seven days on this account's free plan. Nothing is built on it and no decision changes —
+  but a build session that believes the roster is unrecoverable will make different calls
+  than one that knows it has a week, and two files on `main` currently say the former.
+- **The test list grows one manual item, not a test.** Six `curl`s against production after
+  deploy: five wrong keys return `401`, the sixth `429`, and then the **right** key still
+  returns `200` inside the same minute — the half that proves only failures are counted.
+  Record the result in done-when; it is the only evidence the limiter will have.
+- **And it grows a gap worth stating.** Four of the assertions this ticket already requires
+  — the `409` on a duplicate name, the `400` at 251 characters, the `PUT` that moves
+  `updated_at`, and the cascade leaving zero rows — are route-level, and **nothing in this
+  repository boots the Worker**. The spec should say that out loud rather than list them as
+  if `npm test` could hold them.
+  [04/tickets/01](04-destructive-routes-and-rate-limiting/tickets/01-no-worker-level-test-harness.md),
+  blocking nothing.
+- **Out of scope gains two lines**: a second factor on `DELETE` (the typed-slug guard
+  stays the only one), and rate limiting anything but the admin login —
+  `POST /api/pro/verify` stays unlimited because
+  [accounts/05](../../accounts/05-retire-pro-invite-surface.md) deletes the surface, and
+  `/api/auth/*` moved to [accounts/01](../../accounts/01-discord-oauth-sign-in.md).
