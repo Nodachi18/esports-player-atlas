@@ -1,7 +1,7 @@
 # Write the admin player CRUD handoff spec
 
 Type: task
-Status: open
+Status: resolved
 Blocked by: — (was 01, 02, 03, 04; all resolved 2026-10-12)
 Map: ../map.md
 
@@ -136,3 +136,58 @@ last open dependency; this ticket is unblocked and the map's frontier is empty.*
   `POST /api/pro/verify` stays unlimited because
   [accounts/05](../../accounts/05-retire-pro-invite-surface.md) deletes the surface, and
   `/api/auth/*` moved to [accounts/01](../../accounts/01-discord-oauth-sign-in.md).
+
+## Answer
+
+**Written 2026-10-12 as [`spec.md`](../spec.md), labelled `ready-for-agent`.** The map's
+frontier was empty and all four decisions resolved, so this folded them in rather than
+deciding anything new. Two things in it were not inherited from a ticket, and both are
+named below.
+
+### What it folds, and from where
+
+- **Routes, rejections, caps and form behaviour** —
+  [03/contract.md](03-form-behaviour-contract/contract.md), near enough verbatim, and
+  named in the spec as the authority if the two ever disagree.
+- **The rate limit** — [04/rate-limit.md](04-destructive-routes-and-rate-limiting/rate-limit.md),
+  including the `wrangler.jsonc` block, the ten-line code shape with its four deliberate
+  properties, the three endpoints left unlimited, and the "limiter goes in the first pull
+  request" ordering line. The scope note the ticket asked for is the spec's first section,
+  so the section does not read as a stray.
+- **The page and the form** — [01](01-admin-page-layout.md)'s answer and
+  [design-plan.md](01-admin-page-layout/design-plan.md)'s copy, **as amended by 03**: no
+  slug preview, no `401` draft preservation, duplicate handles impossible.
+- **The migrations** — all four, as a table of what each does and why it is shaped that
+  way, with the four `git mv`s as the build session's first act, the unrun `d1-migrations`
+  checklist stated, and both deploy-window residuals written down.
+- **Recoverability** — decision 2's amended "irreversibly": `wrangler rollback` restores
+  code and never rows, D1 Time Travel gives seven days on this account's free plan,
+  nothing is built on it, no decision changes.
+- **Out of scope** — the map's list, plus `updated_at` being exposed nowhere and the three
+  fog items, each with a pointer.
+
+### Two decisions this ticket made rather than inherited
+
+The spec needed somewhere for its tests to attach, and the ticket's test list was written
+against a repository where nothing boots the Worker. Rather than list eight assertions as
+if `npm test` could hold them, the spec puts **two new pure modules** in — the repo's
+existing idiom, one module per concern beside `ranking.js` and `state.js`:
+
+1. **`src/players.js`** — `validatePlayerInput(body)` and a `CAPS` table, pure, called by
+   both `POST` and `PUT` so the two cannot drift. This turns the 250/251 assertion, the
+   seven-fields-agree assertion and the required-field assertion into real tests in a new
+   `test/players.test.js`.
+2. **`public/app/playerForm.js`** — `formMode`, `formValues`, `canDelete`, `resultFor`.
+   Pure, no DOM. The Selection round-trip and the exact-slug guard become tests in the
+   existing `test/frontend.test.js` by adding one import line.
+
+**Four assertions stay manual and the spec says so out loud**: the `409` on create and
+rename, the `PUT` that moves `updated_at`, the cascade leaving zero rows in both child
+tables, and the six-`curl` rate-limit check whose final `200` is the half that matters.
+That is [04/tickets/01](04-destructive-routes-and-rate-limiting/tickets/01-no-worker-level-test-harness.md),
+still blocking nothing — but it is now the gap for four items rather than eight.
+
+### The map is closed
+
+Every decision resolved, the spec written, the four migration files staged and pointed at.
+Nothing on this map is open.
