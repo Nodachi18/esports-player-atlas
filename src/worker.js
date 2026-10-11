@@ -123,13 +123,17 @@ async function adminRoute(request, env, method, path) {
   const db = env.DB;
 
   if (method === 'GET' && path === '/api/admin/stats') {
+    // `players` has to come from `players`. Counting distinct player_id in `ratings`
+    // answers a different question — how many players anyone has rated — and the admin
+    // page labelled that answer "players", so a roster of 38 reported 3.
     const totals = await db.prepare(
-      `select count(*) ratings,sum(panel='community') community,sum(panel='professional') professional,sum(flagged) flagged,count(distinct player_id) players from ratings`,
+      `select count(*) ratings,sum(panel='community') community,sum(panel='professional') professional,sum(flagged) flagged,count(distinct player_id) rated from ratings`,
     ).first();
+    const roster = await db.prepare('select count(*) players from players where active=1').first();
     const daily = await all(db.prepare(
       'select substr(created_at,1,10) day,count(*) ratings,sum(flagged) flagged from ratings group by day order by day desc limit 30',
     ));
-    return json(200, { totals, daily });
+    return json(200, { totals: { ...totals, players: roster.players }, daily });
   }
 
   if (method === 'GET' && path === '/api/admin/ratings') {
