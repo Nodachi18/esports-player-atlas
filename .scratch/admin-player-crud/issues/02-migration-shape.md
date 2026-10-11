@@ -42,6 +42,27 @@ would have passed the local verification step (`rm -rf .wrangler/state/v3/d1`) a
 for the first time on the 38 rows in production, inside `npm run deploy`, after the
 migration step and before `wrangler deploy`.
 
+
+**2026-10-11** — [03](03-form-behaviour-contract.md) resolved and added a **third**
+migration, so "two migrations, both additive" is now "three, two of them additive".
+
+`name` becomes unique across the roster, case-insensitively, because decision 3 makes the
+header search the only way to pick a Player to edit and two rows reading `Flash` is an
+unusable picker. The file is
+[03-form-behaviour-contract/0005_player_name_unique.sql](03-form-behaviour-contract/0005_player_name_unique.sql),
+staged under the same rule as these two.
+
+**It does not share their safety.** `0003` and `0004` are additive and defaulted and
+cannot fail. `CREATE UNIQUE INDEX` fails outright if two Players already share a name — in
+the same mid-deploy window `docs/adr/0001` was written about. Verified clean against live
+on 2026-10-11 (38 Players, no duplicate exact, case-insensitive or after slugification);
+the file carries the pre-flight query and says to re-run it.
+
+03 also closed the two things this ticket left open here: the cap is enforced with a `400`
+rather than silent truncation, and it now applies to all seven fields rather than the
+editorial three. `PUT` writes `updated_at` on every call, including one that changes
+nothing, and the client may never send it.
+
 ## Answer
 
 **Two migrations, both additive, both staged outside `migrations/`.** Decided 2026-10-11.

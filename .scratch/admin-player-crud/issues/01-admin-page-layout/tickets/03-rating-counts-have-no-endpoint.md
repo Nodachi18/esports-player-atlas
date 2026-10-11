@@ -1,7 +1,7 @@
 # Per-player rating counts have no endpoint
 
 Type: task
-Status: open
+Status: resolved
 Blocked by: —
 Map: ../../../map.md
 Found by: ../prototype.md
@@ -38,3 +38,30 @@ only fact the admin is given before an irreversible delete.
 
 Decision 10 says the picker lists from `/api/players`; this ticket is what that endpoint
 has to return for the picker to be useful.
+
+## Answer
+
+**Resolved 2026-10-11 on [03](../../03-form-behaviour-contract.md).** All three questions
+answered; decision 8 is unblocked.
+
+**`/api/players` grows a flat `ratings` count**, a `count(*)` via a left join. It is the
+public list endpoint decision 10 already names, and a per-player count is public in
+aggregate anyway. No admin-only list endpoint.
+
+**It counts every row, flagged included**, because the cascade takes flagged rows too. This
+was the question with a wrong answer available: `profiles()` *does* yield a usable `n`, but
+`refreshStats()` builds it from unflagged rows only (`src/worker.js:214`), so it understates
+a cascade by exactly the Ratings an admin has already looked at. The count is deliberately
+**not** added to `profiles()` for that reason — two differently-computed counts side by side
+is the confusion this exists to end.
+
+**The guard reads the value its rail row was rendered from**, without re-fetching. With one
+admin and an 8-hour token the stale case is theoretical, and `DELETE` now returns
+`{slug, ratings: n}` — what it actually destroyed — so a stale guard shows up as a visible
+discrepancy afterwards rather than never.
+
+One number serves the rail row, the form's read-only Ratings cell and the guard, and they
+cannot disagree.
+
+The disclosure's **rows** are a separate problem and did not come with this:
+[03/tickets/01](../../03-form-behaviour-contract/tickets/01-per-player-rating-rows-have-no-endpoint.md).

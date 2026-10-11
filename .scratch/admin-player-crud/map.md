@@ -9,10 +9,12 @@ updates and deletes a Player, filled from the Selection and the header search, p
 schema the form needs, decided and written as migrations a build session applies.
 
 **No admin code is written in this map**, and no migration is applied from it. The spec
-and the migration files are the deliverable. There are **two** of them, not one —
-`form` and `updated_at`, one concern each (decision 02) — and they are staged in
-[issues/02-migration-shape/](issues/02-migration-shape/) rather than under `migrations/`,
-because a migration that reaches `main` is a migration that has been applied.
+and the migration files are the deliverable. There are **three** of them — `form` and
+`updated_at` in [issues/02-migration-shape/](issues/02-migration-shape/) (decision 02),
+and the unique index on `name` in
+[issues/03-form-behaviour-contract/](issues/03-form-behaviour-contract/) (decision 03),
+one concern each. All three are staged outside `migrations/`, because a migration that
+reaches `main` is a migration that has been applied. **Only the third can fail on apply.**
 
 ## Notes
 
@@ -34,8 +36,11 @@ on this map depends on a fact from outside this working directory.
 ### Standing decisions from charting (2026-10-11)
 
 1. The destination is a spec to hand off, plus the decided migrations. Plan, don't build.
-2. **Delete is a hard delete.** The row goes, and `ratings.player_id ON DELETE CASCADE`
-   takes that Player's Ratings with it, irreversibly, on a live public site.
+2. **Delete is a hard delete.** The row goes, and `ON DELETE CASCADE` takes that Player's
+   Ratings **and their cached aggregates in `player_stats`** with it, irreversibly, on a
+   live public site. Nothing in this repository sets `PRAGMA foreign_keys`, so the build
+   session proves the cascade before shipping the route
+   ([03/tickets/02](issues/03-form-behaviour-contract/tickets/02-prove-the-cascade-is-enforced.md)).
    `wrangler rollback` restores code, never rows. Recommended against during charting and
    chosen anyway; recorded here so the build session does not relitigate it.
 3. **One global Selection**, shared with the public Players page. `?page=admin&player=boxer`
@@ -52,9 +57,12 @@ on this map depends on a fact from outside this working directory.
 6. **The API grows real verbs**: `PUT /api/admin/players/:slug` and
    `DELETE /api/admin/players/:slug`. The current GET/POST-only API is what create-and-rate
    happened to need, not a convention worth preserving.
-7. **The slug is immutable after create.** It is the Player's public identity and sits in
-   every shared URL. The form shows it as read-only text. `uniqueSlug()` keeps deriving it
-   from the name at create time.
+7. **The slug is immutable after create, and the server alone mints it.** It is the
+   Player's public identity and sits in every shared URL. `uniqueSlug()` derives it from
+   the name at create time and from nothing else — `POST` no longer accepts a
+   client-supplied `slug`, and the browser does not reimplement `slugify()` to preview one
+   (decision 03). The slug is first shown when it becomes real, in the create success
+   message, and thereafter as read-only text.
 8. **Delete is guarded by typing the slug.** A dialog naming the Player and the exact count
    of Ratings that will be destroyed, with a Delete control that stays disabled until the
    slug is typed exactly. A dialog dismissable with a reflexive Enter is not a guard, and
@@ -75,15 +83,37 @@ on this map depends on a fact from outside this working directory.
     characters, and so are `style` and `notes`** — one number for the whole Editorial
     fieldset, replacing today's `style` 200 and `notes` 1000. The cap is API-layer only;
     SQLite `TEXT` is unbounded and the migration does not enforce it (decision 02).
+    **Over-length is rejected with a `400`, never truncated**, and that holds for every
+    capped field rather than the editorial three (decision 03).
 14. **`players.updated_at` ships with it**, as a second migration. It equals `created_at`
     on create and moves forward on every write that changes the row. The default is `''`,
     not `CURRENT_TIMESTAMP`, because SQLite refuses a non-constant default in
     `ADD COLUMN` on a table that has rows — the obvious spelling passes locally against an
     empty table and fails against the 38 in production, mid-deploy (decision 02).
+15. **A Player's handle is unique across the roster, case-insensitively.** Decision 3
+    makes the header search the only way to pick a Player to edit, so two rows reading
+    `Flash` is an unusable picker, not a cosmetic nuisance. A third migration,
+    `CREATE UNIQUE INDEX players_name_unique ON players(name COLLATE NOCASE)`, and a `409`
+    on create and on rename. It works only because decision 2 made delete hard — a
+    soft-deleted `Flash` would hold the name forever. **It is the only migration on this
+    map that can fail on apply** (decision 03).
 
 ## Decisions so far
 
 <!-- one line per closed ticket, then follow the link for the detail it holds -->
+
+- **The routes replace, reject loudly, and never substitute silently.** `PUT` is a full
+  replace that always moves `updated_at`; `DELETE` takes no body and reports the Ratings it
+  destroyed; both ignore `active` and `404` on a missing slug. Over-length is a `400`, not
+  a truncation, on all seven fields. **`name` becomes unique case-insensitively** — a third
+  migration — which turns the duplicate-Player hazard into a `409` on the name and let the
+  slug preview go: slug derivation is backend-only and the slug is first shown once it
+  exists. `/api/players` grows one flat `ratings` count, flagged included, serving the rail,
+  the form and the delete guard alike. The form's draft moves into `data.playerForm`,
+  because `render()` wipes the DOM and the header search re-renders on every keystroke. A
+  `401` still loses the form, deliberately.
+  [03](issues/03-form-behaviour-contract.md), contract and reasoning in
+  [issues/03-form-behaviour-contract/](issues/03-form-behaviour-contract/).
 
 - **Two migrations, both additive, both staged outside `migrations/`.** `form` is the
   only column the form's field list lacks; `updated_at` joins it, defaulted to `''` and
@@ -112,9 +142,12 @@ on this map depends on a fact from outside this working directory.
 - **Concurrent or stale edits.** An admin token lives 8 hours and there is no optimistic
   locking. With one admin this is theoretical; it sharpens the moment `accounts/07`
   replaces the shared key with per-Account admin Roles.
-- **What the form shows about a Player's Ratings.** The delete dialog needs a rating count
-  (decision 8), which puts rating data inside the edit surface for the first time. How far
-  that goes — counts only, or a link into moderation — is not yet sharp.
+- **What the form shows about a Player's Ratings.** The *count* is settled — one flat
+  `ratings` column on `/api/players`, flagged included (decision 03) — so the delete guard
+  and the roster rail are served. The **rows** behind 01's `▸ 12 ratings about BoxeR`
+  disclosure are not: how far rating data goes into the edit surface, and whether it
+  carries the flag control and so becomes a moderation surface, is still fog.
+  [03/tickets/01](issues/03-form-behaviour-contract/tickets/01-per-player-rating-rows-have-no-endpoint.md).
 - **Audit trail.** *Who* changed what. Decision 14 settles *when* — `updated_at` moves on
   every write — but who did it stays meaningless while admin is a shared key with no
   identity behind it, and nothing surfaces `updated_at` in the UI yet. Sharpens with

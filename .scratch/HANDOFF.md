@@ -79,20 +79,31 @@ and it also hides newly created players from the admin who just made them.
 else.** `POST /api/admin/players` creates; there is no update and no delete anywhere in the
 API, so a typo in a name is permanent and the Admin page renders only stats and a ratings
 table. Charted as a wayfinder map on 2026-10-11, destination a handoff spec plus the
-migrations. **01 layout and 02 migration shape are resolved**; the frontier is now
-[03 form behaviour contract](admin-player-crud/issues/03-form-behaviour-contract.md) and
-[04](admin-player-crud/issues/04-destructive-routes-and-rate-limiting.md) above, with
-[05](admin-player-crud/issues/05-handoff-spec.md) waiting on both.
+migrations. **01 layout, 02 migration shape and 03 form behaviour contract are resolved**;
+the frontier is now
+[04](admin-player-crud/issues/04-destructive-routes-and-rate-limiting.md) above — the last
+open decision — with [05](admin-player-crud/issues/05-handoff-spec.md) waiting on it
+alone. 03's output is written as spec input rather than as an argument to re-read:
+[contract.md](admin-player-crud/issues/03-form-behaviour-contract/contract.md) is the
+routes section of the spec, near enough verbatim.
 
 Delete was decided as a **hard** delete, against the recommendation on the map — it
 cascades to that player's ratings and nothing restores them, so the typed-slug guard is the
 only line of defence there is. Needs no accounts, so it does not queue behind sign-in.
 
-The schema is decided and **two migration files are written but deliberately not under
-`migrations/`** — `players.form` and `players.updated_at`, staged in
-[issues/02-migration-shape/](admin-player-crud/issues/02-migration-shape/). In this repo a
-migration that reaches `main` is a migration that has been applied, so moving them is the
-build session's first act, not this map's.
+The schema is decided and **three migration files are written but deliberately not under
+`migrations/`** — `players.form` and `players.updated_at` in
+[issues/02-migration-shape/](admin-player-crud/issues/02-migration-shape/), and a unique
+index on `players.name` in
+[issues/03-form-behaviour-contract/](admin-player-crud/issues/03-form-behaviour-contract/).
+In this repo a migration that reaches `main` is a migration that has been applied, so
+moving all three is the build session's first act, not this map's.
+
+**The third is the one that can fail.** The first two are additive and defaulted;
+`CREATE UNIQUE INDEX players_name_unique` dies outright if two players already share a
+name, inside `npm run deploy`, in the same window the ADD COLUMN trap above describes.
+Verified clean against live on 2026-10-11 — 38 players, no duplicate name exact,
+case-insensitive, or after slugification — and the file carries the query to re-run.
 
 Lower: [stats/01](stats/01-history-means-vs-medians.md) (history shows means while the radar
 beside it shows medians — same data, visibly different numbers),

@@ -33,6 +33,14 @@ post-migration schema and both work.
   `text()` does at the boundary went to [03](../03-form-behaviour-contract.md); the test
   went to [05](../05-handoff-spec.md).
 
+## A third migration joined these two
+
+[03](../03-form-behaviour-contract.md) made `players.name` unique, which needs
+[`0005_player_name_unique.sql`](../03-form-behaviour-contract/0005_player_name_unique.sql)
+— staged in 03's folder under the same rule, so the build session's first act is three
+`git mv`s, not two. Unlike these two it **can fail on apply**: `CREATE UNIQUE INDEX` dies
+against existing duplicates, mid-deploy.
+
 ## Notes written back onto open tickets
 
 - [03 — form behaviour contract](../03-form-behaviour-contract.md): the 250 cap, what
