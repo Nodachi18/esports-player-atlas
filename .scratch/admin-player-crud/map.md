@@ -6,10 +6,13 @@ Label: `wayfinder:map`
 
 A handoff-ready spec for the admin area's player management: one form that creates,
 updates and deletes a Player, filled from the Selection and the header search, plus the
-`form` column decided and written as a migration that a build session applies.
+schema the form needs, decided and written as migrations a build session applies.
 
 **No admin code is written in this map**, and no migration is applied from it. The spec
-and the migration file are the deliverable.
+and the migration files are the deliverable. There are **two** of them, not one —
+`form` and `updated_at`, one concern each (decision 02) — and they are staged in
+[issues/02-migration-shape/](issues/02-migration-shape/) rather than under `migrations/`,
+because a migration that reaches `main` is a migration that has been applied.
 
 ## Notes
 
@@ -30,7 +33,7 @@ on this map depends on a fact from outside this working directory.
 
 ### Standing decisions from charting (2026-10-11)
 
-1. The destination is a spec to hand off, plus one decided migration. Plan, don't build.
+1. The destination is a spec to hand off, plus the decided migrations. Plan, don't build.
 2. **Delete is a hard delete.** The row goes, and `ratings.player_id ON DELETE CASCADE`
    takes that Player's Ratings with it, irreversibly, on a live public site.
    `wrangler rollback` restores code, never rows. Recommended against during charting and
@@ -68,11 +71,29 @@ on this map depends on a fact from outside this working directory.
     honestly specified against an Account model that does not exist yet.
 13. **The `form` column is carried by this map**, absorbed from `player-profiles/01`. One
     `TEXT NOT NULL DEFAULT ''` alongside `style`. Form is editorial free text and is never
-    computed from Ratings; the glossary entry in `CONTEXT.md` says so.
+    computed from Ratings; the glossary entry in `CONTEXT.md` says so. **Capped at 250
+    characters, and so are `style` and `notes`** — one number for the whole Editorial
+    fieldset, replacing today's `style` 200 and `notes` 1000. The cap is API-layer only;
+    SQLite `TEXT` is unbounded and the migration does not enforce it (decision 02).
+14. **`players.updated_at` ships with it**, as a second migration. It equals `created_at`
+    on create and moves forward on every write that changes the row. The default is `''`,
+    not `CURRENT_TIMESTAMP`, because SQLite refuses a non-constant default in
+    `ADD COLUMN` on a table that has rows — the obvious spelling passes locally against an
+    empty table and fails against the 38 in production, mid-deploy (decision 02).
 
 ## Decisions so far
 
 <!-- one line per closed ticket, then follow the link for the detail it holds -->
+
+- **Two migrations, both additive, both staged outside `migrations/`.** `form` is the
+  only column the form's field list lacks; `updated_at` joins it, defaulted to `''` and
+  backfilled from `created_at`, because `DEFAULT CURRENT_TIMESTAMP` is illegal in
+  `ADD COLUMN` on a non-empty table. One cap of 250 for `style`, `form` and `notes`,
+  enforced in `text()` and nowhere else. The files are staged in
+  [issues/02-migration-shape/](issues/02-migration-shape/) rather than under `migrations/`,
+  because in this repo merging a migration *is* applying it — moving them is the build
+  session's first act. [02](issues/02-migration-shape.md), reasoning and one follow-up
+  ticket in [issues/02-migration-shape/](issues/02-migration-shape/).
 
 - **The admin page is a roster rail beside the form.** The header search filters the rail,
   "New player" is a pinned row at its head, the stat cards shrink to a totals line and the
@@ -94,8 +115,10 @@ on this map depends on a fact from outside this working directory.
 - **What the form shows about a Player's Ratings.** The delete dialog needs a rating count
   (decision 8), which puts rating data inside the edit surface for the first time. How far
   that goes — counts only, or a link into moderation — is not yet sharp.
-- **Audit trail.** Who changed what, and when. Largely meaningless while admin is a shared
-  key with no identity behind it.
+- **Audit trail.** *Who* changed what. Decision 14 settles *when* — `updated_at` moves on
+  every write — but who did it stays meaningless while admin is a shared key with no
+  identity behind it, and nothing surfaces `updated_at` in the UI yet. Sharpens with
+  [accounts/07](../accounts/07-admin-accounts-replace-the-key.md).
 
 ## Out of scope
 

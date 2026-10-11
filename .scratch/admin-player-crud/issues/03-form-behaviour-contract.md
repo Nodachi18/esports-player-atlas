@@ -51,3 +51,22 @@ the questions above and adds one.
   confirmation depends on. Decide it here, since it is a route-shape question:
   [01-admin-page-layout/tickets/03](01-admin-page-layout/tickets/03-rating-counts-have-no-endpoint.md).
   Note the count must include flagged rows — the cascade takes those too.
+
+**2026-10-11** — [02](02-migration-shape.md) resolved and left three things here.
+
+- **One editorial cap of 250** for `style`, `form` and `notes`, replacing `style` 200 and
+  `notes` 1000 (`src/worker.js:151`). Nothing in the schema enforces it — SQLite `TEXT` is
+  unbounded — so it is `text()` and the form's `maxlength`, and this contract is where it
+  is specified.
+- **What `text()` does at the boundary is yours to decide.** Today it truncates silently
+  with `.slice(0, max)`. For `notes` that is now a *narrowing*, so a long note saved under
+  the old cap would be silently shortened on its next save. Safe at this instant — every
+  editorial field in production is empty, checked 2026-10-11 — and
+  [02-migration-shape/tickets/01](02-migration-shape/tickets/01-cap-change-has-no-test.md)
+  holds the rest of it, including that no test asserts any cap today.
+- **`PUT` must write `updated_at`**, and it is not optional dressing: decision 14 makes it
+  the column's whole contract. Every write that changes the row moves it forward; create
+  writes it equal to `created_at` by naming both columns in the INSERT with
+  `CURRENT_TIMESTAMP` (one statement, one value). Decide whether a `PUT` that changes
+  nothing still moves it — and if partial updates are supported, whether `updated_at` is a
+  field the client may send (it must not be).

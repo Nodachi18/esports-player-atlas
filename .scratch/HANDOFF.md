@@ -78,14 +78,21 @@ and it also hides newly created players from the admin who just made them.
 **[admin-player-crud](admin-player-crud/map.md) — the admin can create players and nothing
 else.** `POST /api/admin/players` creates; there is no update and no delete anywhere in the
 API, so a typo in a name is permanent and the Admin page renders only stats and a ratings
-table. Charted as a wayfinder map on 2026-10-11, destination a handoff spec plus one
-migration. **Three tickets are on the frontier and takeable now**:
-[01 layout](admin-player-crud/issues/01-admin-page-layout.md) (prototype),
-[02 migration shape](admin-player-crud/issues/02-migration-shape.md), and
-[04](admin-player-crud/issues/04-destructive-routes-and-rate-limiting.md) above. Delete was
-decided as a **hard** delete, against the recommendation on the map — it cascades to that
-player's ratings and nothing restores them, so the typed-slug guard is the only line of
-defence there is. Needs no accounts, so it does not queue behind sign-in.
+table. Charted as a wayfinder map on 2026-10-11, destination a handoff spec plus the
+migrations. **01 layout and 02 migration shape are resolved**; the frontier is now
+[03 form behaviour contract](admin-player-crud/issues/03-form-behaviour-contract.md) and
+[04](admin-player-crud/issues/04-destructive-routes-and-rate-limiting.md) above, with
+[05](admin-player-crud/issues/05-handoff-spec.md) waiting on both.
+
+Delete was decided as a **hard** delete, against the recommendation on the map — it
+cascades to that player's ratings and nothing restores them, so the typed-slug guard is the
+only line of defence there is. Needs no accounts, so it does not queue behind sign-in.
+
+The schema is decided and **two migration files are written but deliberately not under
+`migrations/`** — `players.form` and `players.updated_at`, staged in
+[issues/02-migration-shape/](admin-player-crud/issues/02-migration-shape/). In this repo a
+migration that reaches `main` is a migration that has been applied, so moving them is the
+build session's first act, not this map's.
 
 Lower: [stats/01](stats/01-history-means-vs-medians.md) (history shows means while the radar
 beside it shows medians — same data, visibly different numbers),
@@ -113,6 +120,16 @@ moved onto the map above, and the filename is now stale),
   ordering lives in `npm run deploy` rather than in the CI workflow, so **any** deploy can
   change the schema. The rules and the verification steps are in the `d1-migrations` skill,
   which fires on an edit under `migrations/`; there is nothing to remember here.
+- **`ADD COLUMN ... DEFAULT CURRENT_TIMESTAMP` succeeds on an empty table and fails on one
+  with rows.** SQLite refuses a non-constant default in `ALTER TABLE ADD COLUMN`, but takes
+  it when there are no rows to fill. So the obvious timestamp column passes the local
+  verification step — which starts from `rm -rf .wrangler/state/v3/d1` — and fails for the
+  first time against the 38 rows in production, inside `npm run deploy`, *after*
+  `d1 migrations apply` and *before* `wrangler deploy`, leaving every later migration
+  unapplied. Use a constant default and a backfill. Found while deciding
+  [admin-player-crud/02](admin-player-crud/issues/02-migration-shape.md) and recorded as
+  [`docs/adr/0001`](../docs/adr/0001-player-updated-at-defaults-to-empty-string.md), the
+  repo's first ADR.
 - **CI deploys show as *deployed by unknown*** in the Cloudflare dashboard. An API token has
   no user session behind it; that is expected, not a misconfiguration.
 - **`seed/demo.sql` must never touch production.** It holds `PRO-DEMO-2026`, published in
