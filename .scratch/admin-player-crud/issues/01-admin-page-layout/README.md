@@ -18,7 +18,7 @@ is throwaway: see [prototype.md](prototype.md) for why it must not reach `main`.
 
 - [01 — The stats cards paint data in the role tint](tickets/01-stat-cards-use-the-role-tint.md)
 - [02 — Destruction needs a colour that is neither tint](tickets/02-a-token-for-destructive-actions.md)
-- [03 — Per-player rating counts have no endpoint](tickets/03-rating-counts-have-no-endpoint.md) — blocks decision 8
+- [03 — Per-player rating counts have no endpoint](tickets/03-rating-counts-have-no-endpoint.md) — **resolved** on [03](../03-form-behaviour-contract.md); decision 8 unblocked
 - [04 — The global ratings table loses its home](tickets/04-where-the-global-ratings-table-goes.md)
 - [05 — The header search does not say it drives the admin roster](tickets/05-search-does-two-jobs.md) — **resolved** by the ticket's answer
 - [06 — The admin "players" card counts rated players, not players](tickets/06-admin-stats-players-card-counts-rated-players.md) — a live defect, verified
@@ -28,6 +28,27 @@ decision 8's guard cannot state a rating count that no endpoint returns, and it 
 handed to [issue 03](../03-form-behaviour-contract.md) because it is a route-shape
 question. **06 is independent of this map** — a one-line defect on live, fixable now.
 01, 02 and 04 are follow-ups with nothing waiting on them.
+
+## Three things here were overridden by 03
+
+[03](../03-form-behaviour-contract.md) is later than this ticket and wins where they
+disagree. A reader arriving at this folder for the layout will otherwise carry away three
+things that are no longer true:
+
+1. **The live slug preview is withdrawn**, with its four lines of copy — typing `Flash`
+   no longer shows `/flash-2` and *flash is taken, so this becomes flash-2*. Slug
+   derivation lives in the backend only; the slug first appears in the create success
+   message, *Created BoxeR at `/boxer`*.
+2. **Duplicate handles are now impossible.** `players.name` is unique, case-insensitively,
+   so the second `Flash` is a `409` rather than a suffixed slug. That is what replaced the
+   preview as the answer to "the admin thinks they edited Flash".
+3. **The `401` requirement is withdrawn.** *Your admin session expired … everything you
+   typed is still here* is not built; the expired-token case keeps today's behaviour and
+   loses the form. The draft does survive a re-render, which is a different and more
+   frequent problem 03 found while looking at this one.
+
+Everything else here — variant A, the rail, the totals line, the delete modal, the mode
+tags, `Handle` as the label for `players.name` — stands.
 
 ## Notes written back onto open tickets
 
