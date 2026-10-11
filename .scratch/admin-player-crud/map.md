@@ -1,6 +1,9 @@
 # Admin Player CRUD
 
 Label: `wayfinder:map`
+Status: **closed 2026-10-12.** Every decision resolved, the frontier empty, and the
+destination written: [spec.md](spec.md), labelled `ready-for-agent`. Nothing here is open.
+Read the spec to build from; read this map only for how a decision was reached.
 
 ## Destination
 
@@ -114,6 +117,21 @@ platform rather than the code.
 ## Decisions so far
 
 <!-- one line per closed ticket, then follow the link for the detail it holds -->
+
+- **The spec is written and the map is closed.** [spec.md](spec.md) folds in all fifteen
+  standing decisions and all four resolved tickets —
+  [contract.md](issues/03-form-behaviour-contract/contract.md) as the routes section and
+  [rate-limit.md](issues/04-destructive-routes-and-rate-limiting/rate-limit.md) as the
+  rate-limit section, both near enough verbatim — plus the four staged migrations, the
+  delete flow end to end, the amended recoverability note, and the out-of-scope list with
+  pointers. **Two decisions it made rather than inherited**: the spec names two new pure
+  modules as its test seams, `src/players.js` (`validatePlayerInput`, `CAPS`, called by
+  both `POST` and `PUT`) and `public/app/playerForm.js` (`formMode`, `formValues`,
+  `canDelete`, `resultFor`) — the repo's existing one-pure-module-per-concern idiom, which
+  moves four of the eight required assertions out of "nothing boots the Worker" and into
+  `npm test`. The remaining four, plus the six-`curl` limiter check, are listed as manual
+  and said out loud as such.
+  [05](issues/05-handoff-spec.md).
 
 - **The delete does not wait for rate limiting, because rate limiting is fifteen lines.**
   The ticket's three options were all ways of managing a gap between the delete shipping

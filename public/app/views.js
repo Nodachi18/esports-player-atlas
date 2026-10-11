@@ -5,6 +5,7 @@ import { CATEGORIES, LENSES, panelScores, hasScores, ratingCount, polygonPoints,
 import { pageOf } from './ranking.js';
 import { FOOTER_LINKS, VISIBILITY } from './nav.js';
 import { hrefFor } from './state.js';
+import { CAPS, canDelete, deletePrompt, formMode, formValues } from './playerForm.js';
 
 export const PER_PAGE = 5;
 
@@ -119,13 +120,16 @@ export function playerDetail(player, state) {
   const scores = panelScores(player, state.lens);
   const rated = hasScores(scores);
 
+  // Form is a real column now, written by an admin and never derived from ratings. It
+  // read `No column for this yet` behind a planned tag until the admin form shipped; a
+  // planned tag on something that exists is the one thing that word may not mean.
   const facts = [
-    { key: 'Style', value: player.style, missing: false },
-    { key: 'Form', value: 'No column for this yet', missing: true },
-    { key: 'Notes', value: player.notes, missing: false },
+    { key: 'Style', value: player.style },
+    { key: 'Form', value: player.form },
+    { key: 'Notes', value: player.notes },
   ].map(fact => `
-    <div class="fact${fact.missing ? ' gap' : ''}">
-      <div class="k">${fact.key}${fact.missing ? plannedTag : ''}</div>
+    <div class="fact">
+      <div class="k">${fact.key}</div>
       <div class="v">${esc(fact.value || '—')}</div>
     </div>`).join('');
 
@@ -278,27 +282,216 @@ export function ratePage(player, result) {
 
 // ---- admin ----
 
-export function adminPage(stats, ratings) {
+export function adminPage(ctx) {
+  const { stats, ratings, roster, filtered, selected, draft, games, guard, query, saving } = ctx;
   if (!stats) return `<div class="block"><b>Admin</b><span>Loading…</span></div>`;
-  const totals = stats.totals || {};
-  // `rated` is the interesting one while most of the roster has no ratings at all: it is
-  // the same gap the leaderboard has, said as a number an admin can watch move.
-  const cards = [
-    ['players', totals.players], ['rated', totals.rated],
-    ['ratings', totals.ratings], ['flagged', totals.flagged],
-  ].map(([label, value]) => `<div class="stat"><b>${value || 0}</b><span>${label}</span></div>`).join('');
 
-  const table = !ratings ? '<button class="btn ghost" type="button" data-admin-ratings>Load ratings</button>' : `
-    <table class="admintable">
+  const create = formMode(selected) === 'create';
+  const values = formValues(selected, draft);
+
+  return `
+    <section class="admin" aria-label="Admin">
+      <div class="adminwork">
+        ${rosterRail(roster, filtered, selected, create, query)}
+        <div class="work">
+          ${formHead(selected, create)}
+          ${playerForm(values, games, create, selected, saving)}
+          ${draft && draft.message ? `<p class="result ${draft.message.tone}" role="status">${esc(draft.message.text)}</p>` : ''}
+          ${create ? '' : ratingDisclosure(selected)}
+        </div>
+      </div>
+      ${totalsLine(stats.totals || {})}
+      ${globalRatings(ratings)}
+      ${guard ? deleteGuard(guard) : ''}
+    </section>`;
+}
+
+/**
+ * The result list of the header search, not a picker of its own — there is one Selection
+ * and one search box on this site, and a second one here would be a second answer to
+ * "which player am I looking at".
+ */
+function rosterRail(roster, filtered, selected, create, query) {
+  const rows = filtered.map(player => `
+    <li><button type="button" data-slug="${esc(player.slug)}"
+                ${!create && selected && player.slug === selected.slug ? 'aria-current="true"' : ''}>
+      <span class="n">${esc(player.name)}</span>
+      <span class="r${player.ratings ? '' : ' zero'}">${player.ratings || '–'}</span>
+      <span class="s">${esc([player.real_name, player.faction].filter(Boolean).join(' · '))}</span>
+    </button></li>`).join('');
+
+  return `
+    <aside class="rail">
+      <div class="railhead">
+        <h2>Roster</h2>
+        <span class="count">${query.trim()
+          ? `${filtered.length} of ${roster.length} matching “${esc(query.trim())}”`
+          : `${filtered.length} of ${roster.length}`}</span>
+      </div>
+      <button class="railnew" type="button" data-player-new ${create ? 'data-on' : ''}>+ New player</button>
+      <p class="railhint">Filtered by the search in the header. The figure is ratings cast.</p>
+      ${rows
+        ? `<ul class="raillist">${rows}</ul>`
+        : `<p class="railempty">No player matches that search. Clearing it brings all
+             ${roster.length} back.</p>`}
+    </aside>`;
+}
+
+/**
+ * Mode is shown three ways at once — a tag, the handle set large, and the slug — because
+ * it is derived from the Selection rather than picked, and state nobody can see reads as
+ * a bug. The slug appears only once it exists: it is never previewed or guessed at.
+ */
+function formHead(selected, create) {
+  if (create) {
+    return `
+      <div class="mode">
+        <span class="modetag create">New player</span>
+        <h1>New player</h1>
+      </div>
+      <span class="hint">The slug is built from the handle when the player is created, and is shown then.</span>`;
+  }
+  return `
+    <div class="mode">
+      <span class="modetag edit">Editing</span>
+      <h1>${esc(selected.name)}</h1>
+      <span class="slugchip">/<b>${esc(selected.slug)}</b></span>
+    </div>
+    <span class="hint">The slug is this player's public address and is in every link ever shared.
+      It cannot change.</span>`;
+}
+
+const fieldInput = (key, label, value, o = {}) => `
+  <label class="f${o.wide ? ' wide' : ''}">
+    <span class="fl">${esc(label)}</span>
+    ${o.area
+      ? `<textarea rows="${o.rows || 3}" maxlength="${CAPS[key]}" data-player-field="${key}"
+                   placeholder="${esc(o.ph || '')}">${esc(value)}</textarea>`
+      : `<input type="text" maxlength="${CAPS[key]}" data-player-field="${key}"
+                value="${esc(value)}" placeholder="${esc(o.ph || '')}"
+                ${o.list ? `list="${o.list}"` : ''}>`}
+    ${o.hint ? `<span class="hint">${esc(o.hint)}</span>` : ''}
+  </label>`;
+
+function playerForm(values, games, create, selected, saving) {
+  const datalist = `<datalist id="games">${(games || [])
+    .map(row => `<option value="${esc(row.game)}"></option>`).join('')}</datalist>`;
+
+  return `
+    <form data-player-form>
+      ${datalist}
+      <fieldset class="set">
+        <legend>Identity</legend>
+        <div class="grid2">
+          ${fieldInput('name', 'Handle', values.name, { ph: 'BoxeR' })}
+          ${fieldInput('real_name', 'Real name', values.real_name, { ph: 'Lim Yo Hwan' })}
+          ${fieldInput('game', 'Game', values.game, {
+            ph: 'StarCraft: Brood War', list: 'games',
+            hint: 'Pick an existing game or type a new one. Spelling it differently splits the roster.',
+          })}
+          ${fieldInput('faction', 'Faction', values.faction, { ph: 'Terran' })}
+        </div>
+      </fieldset>
+      <fieldset class="set">
+        <legend>Editorial</legend>
+        <div class="grid2">
+          ${fieldInput('style', 'Style', values.style, { ph: 'How they play', area: true, rows: 2, wide: true })}
+          ${fieldInput('form', 'Form', values.form, {
+            ph: 'Top ~50, inconsistent', wide: true,
+            hint: 'Your judgement of where they stand. Never calculated from ratings.',
+          })}
+          ${fieldInput('notes', 'Notes', values.notes, { ph: 'Anything else worth recording', area: true, wide: true })}
+          ${create ? '' : readCell('Ratings', selected.ratings || 0)}
+        </div>
+      </fieldset>
+      <div class="actions">
+        <button class="btn" type="submit" ${saving ? 'disabled' : ''}>
+          ${create ? 'Create player' : 'Save changes'}
+        </button>
+        ${create
+          ? '<span class="hint">Creating opens the new player for editing.</span>'
+          : `<button class="btn danger" type="button" data-player-delete>Delete ${esc(selected.name)}</button>`}
+      </div>
+    </form>`;
+}
+
+/** Not a field: a read-only cell, so the row of inputs does not end ragged. */
+const readCell = (label, value) => `
+  <div class="f read">
+    <span class="fl">${esc(label)}</span>
+    <p><b>${value}</b> cast about this player, flagged ones included.</p>
+  </div>`;
+
+/**
+ * The count comes from /api/players. The rows behind it have no endpoint of their own
+ * yet, so the disclosure links into the global table rather than inventing one.
+ */
+const ratingDisclosure = player => `
+  <details class="sub">
+    <summary>${plural(player.ratings || 0, 'rating')} about ${esc(player.name)}</summary>
+    <p class="hint">The rows behind this number have no endpoint of their own yet.
+      <a class="tolink" href="#allratings">Every rating on the site</a> is in the table at the
+      foot of this page.</p>
+  </details>`;
+
+/**
+ * Unchanged, and still at the foot of the page behind its own button: it is how an admin
+ * finds a rating to flag, and nothing else offers that yet. Where it belongs once rating
+ * moderation exists is a question this page does not answer.
+ */
+const globalRatings = ratings => (!ratings
+  ? '<div id="allratings"><button class="btn ghost" type="button" data-admin-ratings>Load ratings</button></div>'
+  : `<table class="admintable" id="allratings">
       <tr><th>Player</th><th>Panel</th><th>Date</th><th>Scores</th><th>Flagged</th></tr>
       ${ratings.map(row => `<tr>
         <td>${esc(row.name)}</td><td>${esc(row.panel)}</td><td>${esc(row.created_at)}</td>
         <td>${CATEGORIES.map(c => row[c]).join(' / ')}</td>
         <td>${row.flagged ? 'yes' : 'no'}</td>
       </tr>`).join('')}
-    </table>`;
+    </table>`);
 
-  return `<section aria-label="Admin"><div class="stats">${cards}</div>${table}</section>`;
+/**
+ * Site-wide totals, at the foot. They were three cards above the form, which made the
+ * first thing read the least relevant thing on screen once the page became about one
+ * player.
+ */
+const totalsLine = totals => `
+  <div class="totals">
+    <span><b>${totals.players || 0}</b> players</span>
+    <span><b>${totals.ratings || 0}</b> ratings</span>
+    <span><b>${totals.flagged || 0}</b> flagged</span>
+  </div>`;
+
+/**
+ * Decision 8. A modal, because the non-modal versions can be scrolled away from and leave
+ * a half-typed confirmation sitting in the page, which looks like progress.
+ *
+ * Keep holds the focus, so a reflexive Enter cancels, and Escape cancels too — cancelling
+ * is the safe direction.
+ */
+function deleteGuard({ player, typed }) {
+  const prompt = deletePrompt(player);
+  return `
+    <dialog class="guard" aria-label="${esc(prompt.heading)}">
+      <div class="guardbody">
+        <h2>${esc(prompt.heading)}</h2>
+        <p>${esc(prompt.lead)}</p>
+        <p>Nothing on this site restores them. There is no undo.</p>
+        <label class="f">
+          <span class="fl">Type ${esc(player.slug)} to confirm</span>
+          <input type="text" id="confirmslug" data-confirm-slug value="${esc(typed)}"
+                 placeholder="${esc(player.slug)}" autocomplete="off" spellcheck="false"
+                 aria-describedby="confirmwhy">
+        </label>
+        <span class="hint" id="confirmwhy">Typing the slug is the only confirmation. A dialog you can
+          dismiss with a reflexive Enter is not a guard.</span>
+        <div class="guardacts">
+          <button class="btn ghost" type="button" data-guard-cancel autofocus>${esc(prompt.cancel)}</button>
+          <button class="btn danger" type="button" data-guard-confirm
+                  ${canDelete(typed, player.slug) ? '' : 'disabled'}>${esc(prompt.confirm)}</button>
+        </div>
+      </div>
+    </dialog>`;
 }
 
 // ---- legal notice ----

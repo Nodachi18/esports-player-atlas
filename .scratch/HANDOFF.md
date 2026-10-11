@@ -30,11 +30,13 @@ closed issues, prototype — is deliberately left that way rather than kept curr
 claim against the code before building on it; several pages it calls `planned` are built,
 and one footer link it never mentions exists.
 
-One plan *is* current: [admin-player-crud/map.md](admin-player-crud/map.md), charted
-2026-10-11 and still open — though as of 2026-10-12 its **frontier is empty**: every
-decision is resolved and only [05](admin-player-crud/issues/05-handoff-spec.md), writing
-`spec.md`, is left. Read the map's "Decisions so far" before the issue files; each line
-links to the detail it summarises.
+One plan *is* current, and as of 2026-10-12 it is **finished and ready to build**:
+[admin-player-crud/spec.md](admin-player-crud/spec.md), labelled `ready-for-agent`. Every
+decision on its map is resolved, the spec folds all of them in, and
+[admin-player-crud/map.md](admin-player-crud/map.md) is **closed** — read the map only for
+*how* a decision was reached, never to find out what is open, because nothing is. This is
+the one plan in `.scratch/` that describes what will be built rather than what was decided
+once; build from the spec.
 
 ## Do this first
 
@@ -84,21 +86,29 @@ site currently opens showing **3 players**. Worse than "nearly empty" as previou
 and arguably worth doing before the two above it: it is the first thing every visitor sees,
 and it also hides newly created players from the admin who just made them.
 
-**[admin-player-crud](admin-player-crud/map.md) — the admin can create players and nothing
+**[admin-player-crud](admin-player-crud/spec.md) — the admin can create players and nothing
 else.** `POST /api/admin/players` creates; there is no update and no delete anywhere in the
 API, so a typo in a name is permanent and the Admin page renders only stats and a ratings
-table. Charted as a wayfinder map on 2026-10-11, destination a handoff spec plus the
-migrations. **All four decisions are resolved** — 01 layout, 02 migration shape, 03 form
-behaviour contract and, on 2026-10-12, 04 destructive routes and rate limiting. **The
-frontier is empty**: what remains is
-[05](admin-player-crud/issues/05-handoff-spec.md), writing `spec.md` and closing the map.
+table. Charted as a wayfinder map on 2026-10-11 and **done planning on 2026-10-12**: all five
+tickets resolved, the map closed, and
+[admin-player-crud/spec.md](admin-player-crud/spec.md) written and labelled
+`ready-for-agent`. **It is the only thing on this list that is fully specified and waits on
+no human** — unlike sign-in, which needs a Discord application registered first. Build from
+the spec; the map and the issue files are the arguments behind it, not a second source of
+truth.
 
-**Two of its decisions are written as spec input rather than as arguments to re-read**, and
-05 folds both in near enough verbatim:
-[contract.md](admin-player-crud/issues/03-form-behaviour-contract/contract.md) is the routes
-section, and
+The spec already folds in
+[contract.md](admin-player-crud/issues/03-form-behaviour-contract/contract.md) (routes,
+rejections, caps, form behaviour) and
 [rate-limit.md](admin-player-crud/issues/04-destructive-routes-and-rate-limiting/rate-limit.md)
-is the rate-limit section.
+(the limiter), both near enough verbatim, so neither needs re-reading to build.
+
+**It names two new pure modules as its test seams**, which is the one thing in it that no
+ticket decided: `src/players.js` (`validatePlayerInput`, `CAPS`, called by both `POST` and
+`PUT` so the two cannot drift) and `public/app/playerForm.js` (`formMode`, `formValues`,
+`canDelete`, `resultFor`). The repo's existing one-pure-module-per-concern idiom, and the
+reason four of the eight required assertions are now `npm test` rather than a `curl` — see
+the route-testing trap below.
 
 Delete was decided as a **hard** delete, against the recommendation on the map — it
 cascades to that player's ratings *and* their `player_stats` row, and the typed-slug guard
@@ -208,10 +218,14 @@ moved onto the map above, and the filename is now stale),
 - **Nothing in this repository tests a route.** `npm test` is `node --test`, and both suites
   import modules and assert on pure functions — `test/stats.test.js` on `src/stats.js`,
   `test/frontend.test.js` on six modules out of `public/app/`. Nothing boots `src/worker.js`,
-  makes a request, or has an `env`. So every route-level guarantee on the admin-player-crud
-  map ships asserted by hand or not at all: the `409` on a duplicate name, the `400` at 251
-  characters, the `PUT` that moves `updated_at`, the cascade leaving zero rows, and the rate
-  limit. Do not read a green CI run as covering any of them.
+  makes a request, or has an `env`. So a route-level guarantee ships asserted by hand or
+  not at all. Do not read a green CI run as covering one.
+  **`admin-player-crud/spec.md` works around this rather than waiting for it**: the caps,
+  the required fields and the whole Selection-to-form path move into two new pure modules
+  (`src/players.js`, `public/app/playerForm.js`) that `node --test` can import. **Four
+  things stay manual** and the spec lists them as such — the `409` on a duplicate name, the
+  `PUT` that moves `updated_at`, the cascade leaving zero rows in both child tables, and
+  the six-`curl` check on the rate limit whose final `200` is the half that matters.
   [admin-player-crud/04/tickets/01](admin-player-crud/issues/04-destructive-routes-and-rate-limiting/tickets/01-no-worker-level-test-harness.md).
 - **CI deploys show as *deployed by unknown*** in the Cloudflare dashboard. An API token has
   no user session behind it; that is expected, not a misconfiguration.

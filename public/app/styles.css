@@ -12,6 +12,11 @@
   /* Lens tint — which panel you are reading. Colours the data. Never the same job. */
   --lens: #dfeefb;
 
+  /* Destruction is neither tint: amber would make it chrome and --lens would make it look
+     like a score. Every red pixel on the site is a destruction or a failure. */
+  --danger: #ff7a7a;
+  --danger-sunk: #1d0f12;
+
   --community: #75c8fa;
   --professional: #bd8dff;
   --admin: #ffb259;
@@ -217,8 +222,6 @@ h1, h2 { margin: 0; }
 }
 .fact .k { font-size: 11px; letter-spacing: .1em; text-transform: uppercase; color: var(--mute); }
 .fact .v { font: 600 25px/1.15 var(--cond); margin-top: 2px; }
-.fact.gap { border-left-color: var(--line); }
-.fact.gap .v { color: var(--mute); font-weight: 500; }
 
 .histbox { margin-top: 14px; font-size: 13px; }
 .histbox summary { color: var(--mute); cursor: pointer; }
@@ -337,14 +340,130 @@ h1, h2 { margin: 0; }
 }
 .result.ok { border-left-color: #6fd08c; }
 .result.dupe { border-left-color: var(--admin); }
-.result.bad { border-left-color: #ff7a7a; }
+.result.bad { border-left-color: var(--danger); }
 
 /* ---------- admin ---------- */
 
-.stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; margin-bottom: 16px; }
-.stat { background: var(--panel); border: 1px solid var(--line); border-radius: 4px; padding: 14px 16px; }
-.stat b { display: block; font: 700 31px/1 var(--cond); color: var(--admin); }
-.stat span { font-size: 11px; letter-spacing: .09em; text-transform: uppercase; color: var(--mute); }
+/* A workbench, not a dashboard: the roster stays on screen while one player is edited,
+   because the job is going through 38 rows rather than editing one you had in mind. */
+.adminwork { display: grid; grid-template-columns: 262px minmax(0, 1fr); gap: 20px; align-items: start; }
+
+.rail { border: 1px solid var(--line); border-radius: 4px; background: var(--panel); overflow: hidden; }
+.railhead { display: flex; align-items: baseline; gap: 10px; padding: 12px 14px 10px; }
+.railhead h2 { font: 600 12px var(--sans); letter-spacing: .09em; text-transform: uppercase; color: var(--mute); }
+.railhead .count { margin-left: auto; font-size: 11px; color: var(--mute); text-align: right; }
+
+/* A row at the head of the list it replaces, not a tab: its only job is clearing the
+   Selection, and a tab would make the mode the control instead of the consequence. */
+.railnew {
+  display: block; width: calc(100% - 20px); margin: 0 10px 8px;
+  background: none; border: 1px dashed var(--admin); border-radius: 3px;
+  color: var(--admin); padding: 9px; cursor: pointer;
+  font: 600 15px var(--cond); letter-spacing: .06em;
+}
+.railnew:hover { background: rgba(255, 178, 89, .1); }
+.railnew[data-on] { background: var(--admin); color: var(--void); border-style: solid; }
+
+.railhint { font-size: 11px; color: var(--mute); padding: 0 14px 10px; margin: 0; }
+.raillist { list-style: none; margin: 0; padding: 0; max-height: 540px; overflow-y: auto; border-top: 1px solid var(--line-dim); }
+.raillist button {
+  display: grid; grid-template-columns: 1fr auto; align-items: baseline; gap: 2px 10px;
+  width: 100%; text-align: left; background: none; border: 0;
+  border-bottom: 1px solid var(--line-dim);
+  color: inherit; padding: 9px 14px; cursor: pointer;
+}
+.raillist button:hover { background: var(--sunk); }
+.raillist button[aria-current] { background: var(--sunk); box-shadow: inset 3px 0 0 var(--admin); }
+.raillist .n { font: 600 17px var(--cond); letter-spacing: .03em; }
+/* Right-aligned: a column of counts you scan for "who has nothing" only works flush. */
+.raillist .r { font-size: 11px; color: var(--lens); }
+.raillist .r.zero { color: var(--mute); }
+.raillist .s { grid-column: 1 / -1; font-size: 11px; color: var(--mute); }
+.railempty { padding: 16px 14px; font-size: 13px; color: var(--mute); }
+
+.work { min-width: 0; }
+
+/* The mode is derived from the Selection, so it is stated three ways: a tag, the handle
+   set large, and the slug. State nobody can see reads as a bug. */
+.mode { display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; margin-bottom: 6px; }
+.mode h1 { font: 700 42px/1 var(--cond); letter-spacing: .01em; }
+.modetag { font: 700 11px var(--sans); letter-spacing: .14em; text-transform: uppercase; border-radius: 2px; padding: 4px 8px; }
+.modetag.edit { background: var(--admin); color: var(--void); }
+.modetag.create { border: 1px dashed var(--admin); color: var(--admin); }
+
+/* The only monospace on the site: a slug is a literal string you have to type exactly. */
+.slugchip {
+  font: 500 13px ui-monospace, SFMono-Regular, Menlo, monospace;
+  border: 1px solid var(--line); border-radius: 3px;
+  padding: 4px 8px; color: var(--mute); background: var(--sunk);
+}
+.slugchip b { color: var(--ink); font-weight: 500; }
+
+.set { border: 1px solid var(--line); border-radius: 4px; background: var(--panel); padding: 16px 18px; margin: 16px 0 0; }
+.set legend { font: 600 11px var(--sans); letter-spacing: .1em; text-transform: uppercase; color: var(--mute); padding: 0 6px; }
+.grid2 { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 13px; }
+.grid2 .wide { grid-column: 1 / -1; }
+
+.f { display: block; }
+.fl { display: block; font: 600 11px var(--sans); letter-spacing: .1em; text-transform: uppercase; color: var(--mute); margin-bottom: 5px; }
+.f input, .f textarea {
+  width: 100%; background: var(--sunk); border: 1px solid var(--line); border-radius: 3px;
+  color: var(--ink); padding: 9px 12px; font: 400 15px var(--sans);
+}
+.f textarea { resize: vertical; min-height: 76px; line-height: 1.5; }
+.f input:focus, .f textarea:focus { border-color: var(--role); outline: none; }
+.f.read { align-self: start; }
+.f.read p { margin: 0; padding: 9px 0 0; font-size: 13px; color: var(--mute); }
+.f.read b { font: 700 21px var(--cond); color: var(--lens); }
+
+.hint { display: block; font-size: 11px; line-height: 1.5; color: var(--mute); margin: 5px 0 0; max-width: 56ch; }
+
+/* The answer lands beside the controls that caused it. */
+.actions {
+  display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+  margin-top: 18px; padding-top: 16px; border-top: 1px solid var(--line-dim);
+}
+.actions .btn.danger { margin-left: auto; }
+.actions + .result { margin-top: 14px; }
+.btn[disabled] { opacity: .45; cursor: progress; }
+.btn.danger { background: none; border: 1px solid var(--danger); color: var(--danger); }
+.btn.danger:hover { background: var(--danger); color: var(--void); }
+.btn.danger[disabled] { opacity: .35; cursor: not-allowed; background: none; color: var(--danger); }
+
+details.sub { margin-top: 16px; }
+details.sub summary { font-size: 13px; color: var(--mute); cursor: pointer; }
+
+/* Site-wide totals, at the foot: the page is about one player now. */
+.totals {
+  display: flex; align-items: center; gap: 18px; flex-wrap: wrap;
+  margin: 22px 0 14px; padding-top: 14px; border-top: 1px solid var(--line-dim);
+  font-size: 12px; color: var(--mute);
+}
+.totals b { font: 700 17px var(--cond); color: var(--ink); }
+.tolink { color: var(--role); border-bottom: 1px solid var(--line); }
+
+/* A modal. The non-modal versions can be scrolled away from, leaving a half-typed
+   confirmation in the page, which looks like progress. */
+dialog.guard {
+  width: min(520px, calc(100vw - 32px));
+  border: 1px solid var(--danger); border-radius: 4px;
+  background: var(--danger-sunk); color: var(--ink);
+  padding: 0; z-index: 60;
+  box-shadow: 0 24px 60px rgba(0, 0, 0, .6);
+}
+.guardbody { padding: 20px 22px; }
+.guard h2 { font: 700 26px var(--cond); letter-spacing: .02em; }
+.guard p { font-size: 14px; line-height: 1.6; margin: 10px 0 14px; color: #f0d6d8; }
+.guard input { background: #140b0d; border-color: #5d2b31; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+.guard input:focus { border-color: var(--danger); }
+.guardacts { display: flex; gap: 10px; justify-content: flex-end; margin-top: 18px; flex-wrap: wrap; }
+dialog.guard::backdrop { background: rgba(2, 7, 11, .78); }
+
+@media (max-width: 1000px) {
+  .adminwork { grid-template-columns: minmax(0, 1fr); }
+  .raillist { max-height: 300px; }
+  .grid2 { grid-template-columns: minmax(0, 1fr); }
+}
 
 .admintable { width: 100%; border-collapse: collapse; margin-top: 12px; }
 .admintable th, .admintable td { text-align: left; padding: 8px; border-bottom: 1px solid var(--line-dim); font-size: 12px; }

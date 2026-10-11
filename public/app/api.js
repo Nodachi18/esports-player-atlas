@@ -36,9 +36,26 @@ export const getLeaderboard = (metric = 'combined', category = '') =>
 
 export const submitRating = body => json('/api/ratings', body);
 
+export const getGames = () => request('/api/games');
+
 export const adminLogin = key => json('/api/admin/login', { key });
 export const getAdminStats = token => request('/api/admin/stats', { headers: { authorization: `Bearer ${token}` } });
 export const getAdminRatings = token => request('/api/admin/ratings', { headers: { authorization: `Bearer ${token}` } });
+
+const admin = (path, method, token, body) => request(path, {
+  method,
+  headers: {
+    authorization: `Bearer ${token}`,
+    ...(body ? { 'content-type': 'application/json' } : {}),
+  },
+  ...(body ? { body: JSON.stringify(body) } : {}),
+});
+
+const playerPath = slug => `/api/admin/players/${encodeURIComponent(slug)}`;
+
+export const createPlayer = (token, body) => admin('/api/admin/players', 'POST', token, body);
+export const updatePlayer = (token, slug, body) => admin(playerPath(slug), 'PUT', token, body);
+export const deletePlayer = (token, slug) => admin(playerPath(slug), 'DELETE', token);
 
 /**
  * Browser-local voter identity, as today. Trivially resettable, which is precisely why
