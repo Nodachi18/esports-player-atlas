@@ -9,12 +9,12 @@ updates and deletes a Player, filled from the Selection and the header search, p
 schema the form needs, decided and written as migrations a build session applies.
 
 **No admin code is written in this map**, and no migration is applied from it. The spec
-and the migration files are the deliverable. There are **three** of them — `form` and
-`updated_at` in [issues/02-migration-shape/](issues/02-migration-shape/) (decision 02),
-and the unique index on `name` in
-[issues/03-form-behaviour-contract/](issues/03-form-behaviour-contract/) (decision 03),
-one concern each. All three are staged outside `migrations/`, because a migration that
-reaches `main` is a migration that has been applied. **Only the third can fail on apply.**
+and the migration files are the deliverable. There are **four** of them, one concern each
+— `form` and `updated_at` in [issues/02-migration-shape/](issues/02-migration-shape/)
+(decision 02), and the delete-cascade trigger and the unique index on `name` in
+[issues/03-form-behaviour-contract/](issues/03-form-behaviour-contract/) (decision 03).
+All four are staged outside `migrations/`, because a migration that reaches `main` is a
+migration that has been applied.
 
 ## Notes
 
@@ -38,9 +38,10 @@ on this map depends on a fact from outside this working directory.
 1. The destination is a spec to hand off, plus the decided migrations. Plan, don't build.
 2. **Delete is a hard delete.** The row goes, and `ON DELETE CASCADE` takes that Player's
    Ratings **and their cached aggregates in `player_stats`** with it, irreversibly, on a
-   live public site. Nothing in this repository sets `PRAGMA foreign_keys`, so the build
-   session proves the cascade before shipping the route
-   ([03/tickets/02](issues/03-form-behaviour-contract/tickets/02-prove-the-cascade-is-enforced.md)).
+   live public site. Nothing in this repository sets `PRAGMA foreign_keys` and it is a
+   per-connection setting, so the cascade is **not** left resting on it: a trigger makes it
+   unconditional (decision 03,
+   [03/tickets/02](issues/03-form-behaviour-contract/tickets/02-prove-the-cascade-is-enforced.md)).
    `wrangler rollback` restores code, never rows. Recommended against during charting and
    chosen anyway; recorded here so the build session does not relitigate it.
 3. **One global Selection**, shared with the public Players page. `?page=admin&player=boxer`
@@ -95,8 +96,8 @@ on this map depends on a fact from outside this working directory.
     `Flash` is an unusable picker, not a cosmetic nuisance. A third migration,
     `CREATE UNIQUE INDEX players_name_unique ON players(name COLLATE NOCASE)`, and a `409`
     on create and on rename. It works only because decision 2 made delete hard — a
-    soft-deleted `Flash` would hold the name forever. **It is the only migration on this
-    map that can fail on apply** (decision 03).
+    soft-deleted `Flash` would hold the name forever. The index cannot fail on apply: the
+    same file renames colliding handles first (decision 03).
 
 ## Decisions so far
 
@@ -111,7 +112,9 @@ on this map depends on a fact from outside this working directory.
   exists. `/api/players` grows one flat `ratings` count, flagged included, serving the rail,
   the form and the delete guard alike. The form's draft moves into `data.playerForm`,
   because `render()` wipes the DOM and the header search re-renders on every keystroke. A
-  `401` still loses the form, deliberately.
+  `401` still loses the form, deliberately. Two further migrations came with it: a trigger
+  making the delete cascade independent of foreign key enforcement, and a dedupe that lets
+  the unique index clear its own way.
   [03](issues/03-form-behaviour-contract.md), contract and reasoning in
   [issues/03-form-behaviour-contract/](issues/03-form-behaviour-contract/).
 

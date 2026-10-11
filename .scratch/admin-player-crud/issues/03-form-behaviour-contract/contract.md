@@ -60,7 +60,7 @@ Destroys a Player, their Ratings and their cached aggregates. New. Irreversible
 |---|---|
 | Body | none. No `confirm` echo — the typed-slug guard is a UI mechanic, not an API one |
 | Success | `200 {slug, ratings: n}` — `n` is what was actually destroyed |
-| Cascade | `ratings` **and** `player_stats`, both `ON DELETE CASCADE` |
+| Cascade | `ratings` **and** `player_stats` — `ON DELETE CASCADE`, backed by a trigger |
 
 - `n` is counted in the same statement batch as the delete, before it, so the number
   reported is the number removed.
@@ -112,7 +112,7 @@ It exists for the case where the two drift apart, and for anything that is not t
 ### Duplicate names
 
 **`name` is unique across the roster, case-insensitively**, enforced by
-[`0005_player_name_unique.sql`](0005_player_name_unique.sql). `POST` and `PUT` both wrap
+[`0006_player_name_unique.sql`](0006_player_name_unique.sql). `POST` and `PUT` both wrap
 their write in the `UNIQUE`-catch already used for invite codes (`src/worker.js:166`) and
 answer `409`; without it the route returns a bare `500`.
 
@@ -178,13 +178,12 @@ withdrawn.** The browser does not reimplement `slugify()`.
 
 ## What the build session must prove
 
-- **The cascade is real.** Delete a seeded Player locally and assert zero rows remain in
-  `ratings` **and** `player_stats` for that `player_id`. Nothing in the repo sets
-  `PRAGMA foreign_keys`; Cloudflare's docs enforce them by default (they document how to
-  *disable* them), but decision 2 rests entirely on this and SQLite reuses
-  `INTEGER PRIMARY KEY` rowids — an unenforced cascade would hand the next Player created a
-  dead Player's ratings and cached scores.
-  [tickets/02](tickets/02-prove-the-cascade-is-enforced.md).
+- **The cascade still holds through the route.** Delete a Player and assert zero rows
+  remain in `ratings` **and** `player_stats` for that `player_id`, flagged rows included.
+  The schema already guarantees it twice over — `ON DELETE CASCADE` plus the trigger in
+  `0005` — and both were proven against SQLite directly
+  ([tickets/02](tickets/02-prove-the-cascade-is-enforced.md)); this asserts the route does
+  not undo it.
 - **The caps hold.** 250 survives, 251 is a `400`, and `style`, `form` and `notes` agree.
   No test asserts any cap today.
 - **The 409 fires**, on create and on rename.

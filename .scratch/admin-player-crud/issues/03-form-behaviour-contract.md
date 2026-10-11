@@ -90,7 +90,8 @@ write moves it forward". Returns `200` and the full profile.
 `DELETE` takes **no body**. The typed-slug guard stays a UI mechanic; confirmation is user
 safety, not an API concern. It returns `200 {slug, ratings: n}` — the count it actually
 destroyed, counted in the same batch — and cascades to `ratings` **and** `player_stats`,
-which decision 2 never mentioned.
+which decision 2 never mentioned. **That cascade no longer depends on foreign key
+enforcement**: a trigger makes it unconditional (see below).
 
 Both `404` on a missing slug, and **neither filters `active`**: decision 5's premise is
 that the column means nothing, and honouring it in a write path would give it meaning back.
@@ -113,7 +114,7 @@ unusable picker, and the preview that would have disambiguated them has just bee
 
 Unique **globally** (`filterPlayers()` searches the whole roster) and **`COLLATE NOCASE`**
 (`Flash` beside `flash` is the same confusion), enforced by
-[`0005_player_name_unique.sql`](03-form-behaviour-contract/0005_player_name_unique.sql) —
+[`0006_player_name_unique.sql`](03-form-behaviour-contract/0006_player_name_unique.sql) —
 an index, because SQLite cannot add a constraint to an existing table additively. `POST`
 and `PUT` both answer `409` on a taken name, wrapping their write in the `UNIQUE`-catch
 already used for invite codes; without it the route returns a bare `500`.
@@ -200,17 +201,37 @@ Create sets the Selection to the returned slug, so the mode flips `NEW PLAYER` �
 in place and create-then-edit is one motion. Save stays on the Player. Delete sets it to
 `null` (decision 9) and refetches the roster, because the row is gone.
 
+### Two more migrations, and nothing left blocking
+
+**The cascade stops depending on a pragma.** Nothing in this repository sets
+`PRAGMA foreign_keys`, and it is a *per-connection* setting — so measuring it from the CLI,
+which was done and came back clean, says nothing about the Worker connection the delete
+route will actually run on. Rather than carry that as a blocking ticket,
+[`0005_player_delete_cascade.sql`](03-form-behaviour-contract/0005_player_delete_cascade.sql)
+adds an `AFTER DELETE` trigger clearing `ratings` and `player_stats`. Triggers ignore the
+pragma, so the outcome is identical either way; when enforcement *is* on the FK cascade has
+already run and the trigger matches nothing. Proven with the counterfactual: foreign keys
+off and no trigger leaves **2 orphan ratings and 1 orphan stat row**, which is precisely
+what SQLite's rowid reuse would later hand to a newly created Player.
+
+**The unique index moves back behind its own fix.**
+[`0006_player_name_unique.sql`](03-form-behaviour-contract/0006_player_name_unique.sql)
+renames colliding handles to `<name> #<id>` before creating the index, in the same file,
+the way `0004` pairs its `ADD COLUMN` with its backfill. So the one migration on this map
+that could fail on apply no longer realistically can. The residual is stated in the file
+rather than implied, and the pre-flight query stays.
+
+Four migrations now, applied and tested together from `0001` forward against SQLite 3.45.1,
+including against a roster seeded with deliberate duplicates.
+
 ### Opened from here
 
-Two tickets in [03-form-behaviour-contract/tickets/](03-form-behaviour-contract/tickets/).
-**[02](03-form-behaviour-contract/tickets/02-prove-the-cascade-is-enforced.md) blocks the
-delete route**: nothing in this repository sets `PRAGMA foreign_keys`, Cloudflare's docs
-imply enforcement only by documenting how to disable it, and decision 2 rests entirely on
-the cascade being real. If it is not, SQLite's rowid reuse hands the next Player created a
-dead Player's Ratings and cached scores — wrong numbers on a live profile with no error
-anywhere.
-[01](03-form-behaviour-contract/tickets/01-per-player-rating-rows-have-no-endpoint.md)
-blocks nothing; 01's disclosure ships showing the count.
+Two tickets in [03-form-behaviour-contract/tickets/](03-form-behaviour-contract/tickets/),
+**neither blocking**.
+[02](03-form-behaviour-contract/tickets/02-prove-the-cascade-is-enforced.md) is resolved by
+`0005` above — measured, then fixed in the schema so the measurement stops mattering.
+[01](03-form-behaviour-contract/tickets/01-per-player-rating-rows-have-no-endpoint.md) never
+blocked anything; 01's disclosure ships showing the count.
 
 ### Left to 04, undiluted
 

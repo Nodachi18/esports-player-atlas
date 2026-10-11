@@ -91,19 +91,25 @@ Delete was decided as a **hard** delete, against the recommendation on the map �
 cascades to that player's ratings and nothing restores them, so the typed-slug guard is the
 only line of defence there is. Needs no accounts, so it does not queue behind sign-in.
 
-The schema is decided and **three migration files are written but deliberately not under
+The schema is decided and **four migration files are written but deliberately not under
 `migrations/`** — `players.form` and `players.updated_at` in
-[issues/02-migration-shape/](admin-player-crud/issues/02-migration-shape/), and a unique
-index on `players.name` in
+[issues/02-migration-shape/](admin-player-crud/issues/02-migration-shape/), a delete-cascade
+trigger and a unique index on `players.name` in
 [issues/03-form-behaviour-contract/](admin-player-crud/issues/03-form-behaviour-contract/).
 In this repo a migration that reaches `main` is a migration that has been applied, so
-moving all three is the build session's first act, not this map's.
+moving all four is the build session's first act, not this map's.
 
-**The third is the one that can fail.** The first two are additive and defaulted;
+**None of them can realistically fail on apply, and that took work for one of them.**
 `CREATE UNIQUE INDEX players_name_unique` dies outright if two players already share a
-name, inside `npm run deploy`, in the same window the ADD COLUMN trap above describes.
-Verified clean against live on 2026-10-11 — 38 players, no duplicate name exact,
-case-insensitive, or after slugification — and the file carries the query to re-run.
+name — inside `npm run deploy`, in the same window the ADD COLUMN trap above describes — so
+`0006` renames colliding handles to `<name> #<id>` first and creates the index second, in
+one file, the way `0004` pairs its ADD COLUMN with its backfill. It is a no-op against
+today's roster: verified live 2026-10-11, 38 players, no duplicate exact, case-insensitive
+or after slugification.
+
+All four were applied and tested together from `0001` forward against SQLite 3.45.1,
+including against a roster seeded with deliberate duplicates. That is **not** the
+`d1-migrations` verification checklist, which still has not been run.
 
 Lower: [stats/01](stats/01-history-means-vs-medians.md) (history shows means while the radar
 beside it shows medians — same data, visibly different numbers),
@@ -141,6 +147,17 @@ moved onto the map above, and the filename is now stale),
   [admin-player-crud/02](admin-player-crud/issues/02-migration-shape.md) and recorded as
   [`docs/adr/0001`](../docs/adr/0001-player-updated-at-defaults-to-empty-string.md), the
   repo's first ADR.
+- **`PRAGMA foreign_keys` is per connection, and nothing in this repo sets it.** So
+  `ON DELETE CASCADE` is a guarantee that holds on whichever connection happens to have
+  enforcement on. Measuring it from `wrangler d1 execute` proves nothing about the Worker's
+  connection, which is where routes run, and there is no way to check the Worker's without
+  a route that deletes something. Reproduced the failure directly: foreign keys off, delete
+  a player with two ratings and a `player_stats` row, and you get **2 orphan ratings and 1
+  orphan stat** — which SQLite's rowid reuse then hands to the next player created, as
+  their ratings and their cached scores. Wrong numbers on a live profile, no error
+  anywhere. admin-player-crud's staged `0005_player_delete_cascade.sql` settles it with an
+  `AFTER DELETE` trigger, which fires regardless of the pragma; **do not delete it as
+  redundant with the FK clause it duplicates.**
 - **CI deploys show as *deployed by unknown*** in the Cloudflare dashboard. An API token has
   no user session behind it; that is expected, not a misconfiguration.
 - **`seed/demo.sql` must never touch production.** It holds `PRO-DEMO-2026`, published in

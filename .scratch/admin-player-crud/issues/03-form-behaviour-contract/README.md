@@ -6,7 +6,8 @@ Everything that came out of [the ticket](../03-form-behaviour-contract.md).
 |---|---|
 | [contract.md](contract.md) | The contract itself: routes, rejections, form behaviour. **This is what [05](../05-handoff-spec.md) folds into `spec.md`** |
 | [decisions.md](decisions.md) | Why it has this shape, including three answers that were reversed mid-session |
-| [0005_player_name_unique.sql](0005_player_name_unique.sql) | A **third** migration. Staged, **not** in `migrations/`, like 02's two |
+| [0005_player_delete_cascade.sql](0005_player_delete_cascade.sql) | A **third** migration: makes the delete cascade unconditional |
+| [0006_player_name_unique.sql](0006_player_name_unique.sql) | A **fourth**: dedupe, then the unique index. Both staged, **not** in `migrations/`, like 02's two |
 | [tickets/](tickets/) | New work this ticket uncovered |
 
 The ticket's `## Answer` is the short form. Read [contract.md](contract.md) to build from,
@@ -29,32 +30,54 @@ named here rather than left to be rediscovered:
    draft lost. 01's requirement, *Your admin session expired, so nothing was saved … 
    everything you typed is still here*, is **withdrawn** and not built.
 
-## The third migration
+## Two more migrations, making four
 
-`CREATE UNIQUE INDEX players_name_unique ON players(name COLLATE NOCASE)`, staged here
-under the same rule as 02's two files: a migration that reaches `main` is a migration that
-has been applied, so the build session's first act is
+Staged here under the same rule as 02's two — a migration that reaches `main` is a
+migration that has been applied — so the build session's first act is four `git mv`s:
 
 ```sh
 git mv .scratch/admin-player-crud/issues/02-migration-shape/0003_player_form.sql migrations/
 git mv .scratch/admin-player-crud/issues/02-migration-shape/0004_player_updated_at.sql migrations/
-git mv .scratch/admin-player-crud/issues/03-form-behaviour-contract/0005_player_name_unique.sql migrations/
+git mv .scratch/admin-player-crud/issues/03-form-behaviour-contract/0005_player_delete_cascade.sql migrations/
+git mv .scratch/admin-player-crud/issues/03-form-behaviour-contract/0006_player_name_unique.sql migrations/
 ```
 
-**This one can fail where the other two cannot.** `0003` and `0004` are additive and
-defaulted; `0005` fails outright if two Players already share a name, inside
-`npm run deploy`, after the migration step and before `wrangler deploy`. Verified clean
-against the live database on 2026-10-11 — 38 Players, no duplicate exact, case-insensitive
-or after slugification — and the file carries the query to re-run rather than trusting
-that date.
+**`0005` makes the cascade unconditional.** An `AFTER DELETE` trigger on `players` that
+clears `ratings` and `player_stats`. Triggers do not consult the `foreign_keys` pragma, so
+the cascade holds on every connection rather than on the one that happened to be measured.
+A no-op whenever enforcement is on, since the FK cascade has already run by the time it
+fires. This is what resolved [tickets/02](tickets/02-prove-the-cascade-is-enforced.md).
+
+**`0006` clears its own way before it constrains.** `CREATE UNIQUE INDEX` fails outright
+against existing duplicates, mid-deploy; so the file renames colliding handles to
+`<name> #<id>` first and creates the index second, the way `0004` pairs its `ADD COLUMN`
+with its backfill. It is a no-op against today's roster — verified against live on
+2026-10-11, 38 Players, no duplicate exact, case-insensitive or after slugification — and
+exists for whenever it is actually applied.
+
+Its residual is written in the file rather than implied: a row already named literally
+`Flash #7`, where id 7 is a duplicate `Flash`, still breaks it. One pass of SQL cannot rule
+that out, so the pre-flight query stays worth running.
+
+### All four were applied and tested together
+
+Against SQLite 3.45.1, from `0001` forward:
+
+| | |
+|---|---|
+| Four migrations apply in order | clean |
+| Applied to a roster seeded with `Flash` / `FLASH` / `BoxeR` duplicates | clean — survivors `Flash`, `BoxeR`, `Flash #39`, `FLASH #40`, `BoxeR #41` |
+| Delete a Player, foreign keys **on** | 0 orphans in `ratings` and `player_stats` |
+| Delete a Player, foreign keys **off**, trigger present | 0 orphans |
+| Delete a Player, foreign keys **off**, **no** trigger | **2 orphan ratings, 1 orphan stat row** — what `0005` prevents |
 
 ## Tickets opened from here
 
 - [01 — The per-player ratings disclosure has no endpoint behind its rows](tickets/01-per-player-rating-rows-have-no-endpoint.md)
   — blocks nothing; the disclosure ships as a count.
 - [02 — Prove the delete cascade is enforced before shipping the delete](tickets/02-prove-the-cascade-is-enforced.md)
-  — **blocks the delete route.** Nothing in the repo sets `PRAGMA foreign_keys`, and
-  decision 2 rests entirely on the cascade being real.
+  — **resolved**, and it blocks nothing now. It was measured, then fixed in the schema by
+  `0005` so the measurement stops mattering.
 
 ## Resolved from here
 

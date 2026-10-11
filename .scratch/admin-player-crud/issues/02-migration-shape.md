@@ -43,20 +43,29 @@ for the first time on the 38 rows in production, inside `npm run deploy`, after 
 migration step and before `wrangler deploy`.
 
 
-**2026-10-11** — [03](03-form-behaviour-contract.md) resolved and added a **third**
-migration, so "two migrations, both additive" is now "three, two of them additive".
+**2026-10-11** — [03](03-form-behaviour-contract.md) resolved and added **two** more
+migrations, so "two migrations, both additive" is now four.
 
-`name` becomes unique across the roster, case-insensitively, because decision 3 makes the
-header search the only way to pick a Player to edit and two rows reading `Flash` is an
-unusable picker. The file is
-[03-form-behaviour-contract/0005_player_name_unique.sql](03-form-behaviour-contract/0005_player_name_unique.sql),
-staged under the same rule as these two.
+[`0005_player_delete_cascade.sql`](03-form-behaviour-contract/0005_player_delete_cascade.sql)
+is an `AFTER DELETE` trigger on `players` clearing `ratings` and `player_stats`. Decision 2
+rested entirely on `ON DELETE CASCADE`, which only fires when foreign keys are enforced —
+and `foreign_keys` is a per-connection pragma nothing here sets. Triggers ignore it, so the
+cascade holds on every connection. A no-op when enforcement is on.
 
-**It does not share their safety.** `0003` and `0004` are additive and defaulted and
-cannot fail. `CREATE UNIQUE INDEX` fails outright if two Players already share a name — in
-the same mid-deploy window `docs/adr/0001` was written about. Verified clean against live
-on 2026-10-11 (38 Players, no duplicate exact, case-insensitive or after slugification);
-the file carries the pre-flight query and says to re-run it.
+[`0006_player_name_unique.sql`](03-form-behaviour-contract/0006_player_name_unique.sql)
+makes `name` unique case-insensitively, because decision 3 makes the header search the only
+way to pick a Player to edit and two rows reading `Flash` is an unusable picker.
+
+**It clears its own way rather than trusting the data.** `CREATE UNIQUE INDEX` fails
+outright against existing duplicates, mid-deploy, in the window `docs/adr/0001` was written
+about — so the file renames colliding handles to `<name> #<id>` first and creates the index
+second, exactly the shape `0004` uses for its backfill. A no-op against today's roster
+(verified live 2026-10-11: 38 Players, no duplicate at any folding), and the residual it
+cannot rule out is written in the file rather than implied.
+
+All four were applied and tested together from `0001` forward against SQLite 3.45.1,
+including against a roster seeded with deliberate duplicates and including the
+foreign-keys-off counterfactual.
 
 03 also closed the two things this ticket left open here: the cap is enforced with a `400`
 rather than silent truncation, and it now applies to all seven fields rather than the
