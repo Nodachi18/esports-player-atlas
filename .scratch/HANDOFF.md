@@ -1,4 +1,4 @@
-# Handoff — 2026-10-11
+# Handoff — 2026-10-12
 
 ## Where things stand
 
@@ -31,8 +31,10 @@ claim against the code before building on it; several pages it calls `planned` a
 and one footer link it never mentions exists.
 
 One plan *is* current: [admin-player-crud/map.md](admin-player-crud/map.md), charted
-2026-10-11 and still open. It is a live map with a frontier, not a record of a finished
-argument.
+2026-10-11 and still open — though as of 2026-10-12 its **frontier is empty**: every
+decision is resolved and only [05](admin-player-crud/issues/05-handoff-spec.md), writing
+`spec.md`, is left. Read the map's "Decisions so far" before the issue files; each line
+links to the detail it summarises.
 
 ## Do this first
 
@@ -60,14 +62,21 @@ for a wrong URI to break, so it is provisioning for sign-in rather than a defect
 
 ## Then, by value
 
-**[moderation/01](moderation/01-rate-limit-admin-login.md) — rate limiting.** The admin key
-form sits in the footer of every public page and `/api/admin/login` throttles nothing. The
-key itself still holds, but the form advertises the endpoint to the open internet. **Its
-stakes are about to rise**: admin-player-crud adds an irreversible cascading delete behind
-that login, which turns a guessed key from "can flag ratings and mint invites" into "can
-destroy the roster". Whether the delete waits for this is
-[admin-player-crud/04](admin-player-crud/issues/04-destructive-routes-and-rate-limiting.md),
-an open ticket on that map rather than a decision made here.
+**~~moderation/01 — rate limiting~~ — resolved 2026-10-12, and it is off this list.** The
+answer to *does the delete wait for it* turned out to be that there was nothing to wait
+for: the Workers `ratelimit` binding went GA in 2025 and needs no KV, no D1 and no
+provisioning, so the limit is fifteen lines and lives in **admin-player-crud's own spec**,
+shipping in the same build session as the delete.
+[moderation/01](moderation/01-rate-limit-admin-login.md) is closed and its body rewritten,
+because both options it recommended were wrong — see the traps below. Its one surviving
+instruction, *apply it to `/api/auth/*`*, is now a line item on
+[accounts/01](accounts/01-discord-oauth-sign-in.md).
+
+What it did **not** cover, deliberately: `POST /api/pro/verify` is still unthrottled and is
+the weaker of the two guessable endpoints, because `src/worker.js:157` takes an
+admin-supplied invite code at ≥ 8 characters. Left alone only because
+[accounts/05](accounts/05-retire-pro-invite-surface.md) deletes that surface. If sign-in
+slips, this is worth revisiting.
 
 **[frontend/01](frontend/01-unrated-players-in-ranked-views.md) — unrated players.** The
 leaderboard route drops anyone with no ratings, and only 3 of the 38 have any, so the public
@@ -79,17 +88,33 @@ and it also hides newly created players from the admin who just made them.
 else.** `POST /api/admin/players` creates; there is no update and no delete anywhere in the
 API, so a typo in a name is permanent and the Admin page renders only stats and a ratings
 table. Charted as a wayfinder map on 2026-10-11, destination a handoff spec plus the
-migrations. **01 layout, 02 migration shape and 03 form behaviour contract are resolved**;
-the frontier is now
-[04](admin-player-crud/issues/04-destructive-routes-and-rate-limiting.md) above — the last
-open decision — with [05](admin-player-crud/issues/05-handoff-spec.md) waiting on it
-alone. 03's output is written as spec input rather than as an argument to re-read:
-[contract.md](admin-player-crud/issues/03-form-behaviour-contract/contract.md) is the
-routes section of the spec, near enough verbatim.
+migrations. **All four decisions are resolved** — 01 layout, 02 migration shape, 03 form
+behaviour contract and, on 2026-10-12, 04 destructive routes and rate limiting. **The
+frontier is empty**: what remains is
+[05](admin-player-crud/issues/05-handoff-spec.md), writing `spec.md` and closing the map.
+
+**Two of its decisions are written as spec input rather than as arguments to re-read**, and
+05 folds both in near enough verbatim:
+[contract.md](admin-player-crud/issues/03-form-behaviour-contract/contract.md) is the routes
+section, and
+[rate-limit.md](admin-player-crud/issues/04-destructive-routes-and-rate-limiting/rate-limit.md)
+is the rate-limit section.
 
 Delete was decided as a **hard** delete, against the recommendation on the map — it
-cascades to that player's ratings and nothing restores them, so the typed-slug guard is the
-only line of defence there is. Needs no accounts, so it does not queue behind sign-in.
+cascades to that player's ratings *and* their `player_stats` row, and the typed-slug guard
+is the only line of defence in front of it. Needs no accounts, so it does not queue behind
+sign-in.
+
+**Correction, 2026-10-12**: this page used to say "nothing restores them", and the map said
+"irreversibly". Both were reasoning from `wrangler rollback`, which is no help — but **D1
+Time Travel restores rows**, to any minute in the last 7 days on this account's free plan,
+automatically and with no setup. See the traps below. Nothing is built on it and no
+decision changed; the point is that a build session reading the old wording would believe
+the roster is unrecoverable, and it is not.
+
+04 also put a rate limit on `POST /api/admin/login` into that map's spec — the thing that
+used to be moderation/01 — so the delete no longer ships behind a login that throttles
+nothing.
 
 The schema is decided and **four migration files are written but deliberately not under
 `migrations/`** — `players.form` and `players.updated_at` in
@@ -158,6 +183,36 @@ moved onto the map above, and the filename is now stale),
   anywhere. admin-player-crud's staged `0005_player_delete_cascade.sql` settles it with an
   `AFTER DELETE` trigger, which fires regardless of the pragma; **do not delete it as
   redundant with the FK clause it duplicates.**
+- **`wrangler rollback` is not the only restore, and the obvious reading of "forward-only"
+  is wrong about rows.** Migrations are forward-only and rollback restores code, both true —
+  but **D1 Time Travel** restores the database itself to any minute in a window,
+  automatically, with no setup and no cost: **30 days on a paid plan, 7 on free**, and this
+  account is free. `npx wrangler d1 time-travel restore esports-player-atlas --timestamp=<unix>`.
+  Caveats that stop it being a backup strategy: it is a *destructive whole-database*
+  overwrite, so recovering one deleted row reverts every write since that minute; it needs a
+  human with Wrangler authenticated against the account; and it expires silently after a
+  week. Nothing is built on it. Found while deciding
+  [admin-player-crud/04](admin-player-crud/issues/04-destructive-routes-and-rate-limiting.md),
+  where two files in this repo — including this one — were asserting the opposite.
+- **Zone-level Cloudflare features do not exist for a `workers.dev` host.** WAF rules,
+  rate-limiting rules, firewall rules, cache rules: all of them are configured *on a zone*,
+  and `www.esports-player-atlas.workers.dev` is not a zone on this account — `workers.dev`
+  is Cloudflare's. There is no dashboard surface to attach one to, at any price, without
+  buying a domain and onboarding it. This cost
+  [moderation/01](moderation/01-rate-limit-admin-login.md) its recommended solution, which
+  had sat in the tracker as the cheap option for months. **The in-Worker equivalent is the
+  `ratelimit` binding** — GA since 2025-09-19, no KV, no D1, no Durable Object, no
+  provisioning call, `namespace_id` is just an integer you pick, and it adds no storage read
+  to the request. Needs Wrangler ≥ 4.36.0. If anything else in this repo ever reaches for a
+  dashboard-level control, check this first.
+- **Nothing in this repository tests a route.** `npm test` is `node --test`, and both suites
+  import modules and assert on pure functions — `test/stats.test.js` on `src/stats.js`,
+  `test/frontend.test.js` on six modules out of `public/app/`. Nothing boots `src/worker.js`,
+  makes a request, or has an `env`. So every route-level guarantee on the admin-player-crud
+  map ships asserted by hand or not at all: the `409` on a duplicate name, the `400` at 251
+  characters, the `PUT` that moves `updated_at`, the cascade leaving zero rows, and the rate
+  limit. Do not read a green CI run as covering any of them.
+  [admin-player-crud/04/tickets/01](admin-player-crud/issues/04-destructive-routes-and-rate-limiting/tickets/01-no-worker-level-test-harness.md).
 - **CI deploys show as *deployed by unknown*** in the Cloudflare dashboard. An API token has
   no user session behind it; that is expected, not a misconfiguration.
 - **`seed/demo.sql` must never touch production.** It holds `PRO-DEMO-2026`, published in

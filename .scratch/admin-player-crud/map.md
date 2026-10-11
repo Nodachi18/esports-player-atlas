@@ -24,7 +24,11 @@ not an Account, and stays that way for this effort.
 
 Every decision ticket calls the `grilling` and `domain-modeling` skills. The layout ticket
 also calls `frontend-design` and `prototype`. There are **no research tickets**: nothing
-on this map depends on a fact from outside this working directory.
+on this map depends on a fact from outside this working directory. **That was wrong, and
+[04](issues/04-destructive-routes-and-rate-limiting.md) is where it showed** — two of its
+premises were facts about Cloudflare, both stale, and checking them changed the answer. The
+charting assumption held for 01, 02 and 03 and failed on the one ticket that touched the
+platform rather than the code.
 
 ### Vocabulary this map fixes
 
@@ -44,6 +48,14 @@ on this map depends on a fact from outside this working directory.
    [03/tickets/02](issues/03-form-behaviour-contract/tickets/02-prove-the-cascade-is-enforced.md)).
    `wrangler rollback` restores code, never rows. Recommended against during charting and
    chosen anyway; recorded here so the build session does not relitigate it.
+   **Amended 2026-10-12 (decision 04): "irreversibly" overstates it.** `wrangler rollback`
+   is indeed no help, but **D1 Time Travel** restores the database to any minute in the
+   last **7 days** on this account's free plan, automatically and with no setup —
+   `npx wrangler d1 time-travel restore esports-player-atlas --timestamp=<unix>`. It is a
+   floor, not a backup strategy: a destructive whole-database overwrite, so recovering one
+   Player reverts every Rating submitted since that minute. **Nothing is built on it** and
+   no decision here changes — the typed-slug guard stands — but the worst case is "someone
+   has to notice within a week", not "the roster is gone forever".
 3. **One global Selection**, shared with the public Players page. `?page=admin&player=boxer`
    is the edit link; `?page=admin` is the create form. The admin page reuses the existing
    header search rather than carrying a picker of its own.
@@ -102,6 +114,20 @@ on this map depends on a fact from outside this working directory.
 ## Decisions so far
 
 <!-- one line per closed ticket, then follow the link for the detail it holds -->
+
+- **The delete does not wait for rate limiting, because rate limiting is fifteen lines.**
+  The ticket's three options were all ways of managing a gap between the delete shipping
+  and the limit landing; the Workers `ratelimit` binding went GA in 2025 and needs no KV,
+  no D1 and no provisioning, so there is no gap. **The limit goes in this map's spec** —
+  `POST /api/admin/login` only, keyed on `CF-Connecting-IP`, counting failed attempts
+  alone, 5 per 60s, `429`. [moderation/01](../moderation/01-rate-limit-admin-login.md)
+  closes as delivered here, and its WAF option turned out not to exist for a `workers.dev`
+  host. `ADMIN_KEY` is a generated secret, so the limiter is hygiene rather than the thing
+  holding the door. `DELETE` and `/api/pro/verify` are deliberately left unlimited.
+  **Decision 2's "irreversibly" is amended above**: D1 Time Travel gives seven days.
+  Ships without a test, said out loud, because nothing in this repo boots the Worker.
+  [04](issues/04-destructive-routes-and-rate-limiting.md), rule and reasoning in
+  [issues/04-destructive-routes-and-rate-limiting/](issues/04-destructive-routes-and-rate-limiting/).
 
 - **The routes replace, reject loudly, and never substitute silently.** `PUT` is a full
   replace that always moves `updated_at`; `DELETE` takes no body and reports the Ratings it
@@ -174,3 +200,15 @@ on this map depends on a fact from outside this working directory.
 - **Editing or deleting individual Ratings.** This map's delete destroys Ratings only as a
   cascade; Rating moderation is
   [moderation/03](../moderation/03-ban-accounts-and-moderate-ratings.md).
+
+- **A second factor on the destructive route**, and rate limiting anything but the admin
+  login (decision 04). `DELETE` stays guarded by the typed slug alone — a limit on it is a
+  per-colo speed bump, and an `ADMIN_DELETE_KEY` reopens the body `confirm` decision 03
+  rejected. `POST /api/pro/verify` is left unlimited because
+  [accounts/05](../accounts/05-retire-pro-invite-surface.md) deletes the surface.
+  `/api/auth/*` moves to [accounts/01](../accounts/01-discord-oauth-sign-in.md).
+
+- **A route-level test harness.** Nothing in this repo boots the Worker, so the limiter and
+  four of 05's required assertions ship unasserted.
+  [04/tickets/01](issues/04-destructive-routes-and-rate-limiting/tickets/01-no-worker-level-test-harness.md),
+  blocking nothing.

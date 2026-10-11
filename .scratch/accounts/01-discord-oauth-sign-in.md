@@ -103,3 +103,22 @@ page whose whole value is that it is not.
 It also reframes [accounts/06](06-legacy-ratings-after-accounts.md): the privacy page says
 what becomes of pre-account ratings "is not yet decided", so 06 is now a question the site
 has publicly admitted to having.
+
+**2026-10-12 — rate-limit the auth routes as you write them.** Inherited from
+[moderation/01](../moderation/01-rate-limit-admin-login.md), which closed when
+[admin-player-crud/04](../admin-player-crud/issues/04-destructive-routes-and-rate-limiting.md)
+delivered its headline — a limit on `POST /api/admin/login` — and could not deliver its
+other instruction, *"apply it to `/api/auth/*` too once sign-in exists"*, because these
+routes do not exist yet.
+
+By the time you get here the mechanism is already in the repository: the Workers
+`ratelimit` binding, configured in `wrangler.jsonc` and called as
+`await env.LOGIN_LIMIT.limit({ key: ip })`. Adding a route to it is one `if`. The shape to
+copy, and the reasoning behind keying on `CF-Connecting-IP`, failing open when the header
+is absent and counting **failed** attempts only, is
+[04/rate-limit.md](../admin-player-crud/issues/04-destructive-routes-and-rate-limiting/rate-limit.md).
+
+The OAuth `state` round-trip is the part that wants it most: it is the one unauthenticated
+endpoint in this flow that an attacker can call repeatedly with values of their choosing,
+and [02](02-token-kind-discriminator.md) exists because that value is what creates the
+token-confusion risk in the first place.
