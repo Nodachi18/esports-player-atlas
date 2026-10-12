@@ -38,7 +38,7 @@ Five assertions already required by other tickets, all blocked on this one alone
 - **A `PUT` that changes nothing still moves `updated_at`** (decision 14).
 - **Delete leaves zero rows in `ratings` *and* `player_stats`**, flagged rows included.
   The schema guarantees this twice over — `ON DELETE CASCADE` plus the trigger in
-  [`0005`](../../03-form-behaviour-contract/0005_player_delete_cascade.sql) — and both
+  [`0005`](../../../../../migrations/0005_player_delete_cascade.sql) — and both
   were proven against SQLite directly. What is missing is proof the *route* does not undo
   it.
 

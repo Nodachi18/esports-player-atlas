@@ -62,7 +62,7 @@ which is a poor thing to put under an irreversible delete.
 
 ### What was done instead
 
-[`0005_player_delete_cascade.sql`](../0005_player_delete_cascade.sql), an `AFTER DELETE`
+[`0005_player_delete_cascade.sql`](../../../../../migrations/0005_player_delete_cascade.sql), an `AFTER DELETE`
 trigger on `players` clearing `ratings` and `player_stats`.
 
 Triggers do not consult `foreign_keys`. They fire on every connection, so the cascade stops

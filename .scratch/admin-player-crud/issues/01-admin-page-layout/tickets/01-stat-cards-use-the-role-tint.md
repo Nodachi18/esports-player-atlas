@@ -1,7 +1,7 @@
 # The stats cards paint data in the role tint
 
 Type: task
-Status: open
+Status: resolved
 Blocked by: —
 Map: ../../../map.md
 Found by: ../prototype.md
@@ -39,3 +39,23 @@ person to add a number to this page will copy whatever is already there.
 One CSS declaration, plus the same question for any new figure the admin form introduces
 (the rail's rating counts, the guard's destruction count — the guard's is neither tint, see
 [02](02-a-token-for-destructive-actions.md)).
+
+## Answer
+
+**Resolved 2026-10-12 by the build (`9ee0da8`): `--ink` for the totals, `--lens` for
+per-player figures, and the amber rule is gone.**
+
+The three stat cards no longer exist — the form took the top of the page and the figures
+became a totals line at its foot, `public/app/views.js:totalsLine`. `.stat b` went with
+them, so `color: var(--admin)` is not in the stylesheet any more.
+
+- **Site-wide totals take `--ink`** (`.totals b`), on the argument this ticket recorded:
+  a total belongs to no panel, so neither tint is honest. The comment above the rule says
+  the page is about one player now, which is the same reason stated the other way round.
+- **Per-player figures take `--lens`** — the rail's rating counts (`.raillist .r`) and the
+  form's read-only cells (`.f.read b`). Those are data about the player on screen, so the
+  data tint is right, and this is the convention anyone adding a number to the form should
+  copy.
+
+The delete guard's destruction count is neither: it sits inside the `--danger` block, per
+[02](02-a-token-for-destructive-actions.md).

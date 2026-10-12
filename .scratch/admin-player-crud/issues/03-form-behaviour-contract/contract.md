@@ -112,7 +112,7 @@ It exists for the case where the two drift apart, and for anything that is not t
 ### Duplicate names
 
 **`name` is unique across the roster, case-insensitively**, enforced by
-[`0006_player_name_unique.sql`](0006_player_name_unique.sql). `POST` and `PUT` both wrap
+[`0006_player_name_unique.sql`](../../../../migrations/0006_player_name_unique.sql). `POST` and `PUT` both wrap
 their write in the `UNIQUE`-catch already used for invite codes (`src/worker.js:166`) and
 answer `409`; without it the route returns a bare `500`.
 

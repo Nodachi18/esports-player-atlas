@@ -1,9 +1,9 @@
-# Handoff — 2026-10-12
+# Handoff — 2026-10-13
 
 ## Where things stand
 
-The navigation overhaul shipped, and `main` now tests and deploys itself. The app is
-**live and public** at
+The navigation overhaul shipped, the admin player form shipped on 2026-10-12, and `main`
+tests and deploys itself. The app is **live and public** at
 <https://www.esports-player-atlas.workers.dev> — deliberately, as a prototype with
 disposable data, because Cloudflare Access turned out to need a payment method on the
 account even for its free tier.
@@ -11,13 +11,13 @@ account even for its free tier.
 | | |
 |---|---|
 | Live | `www.esports-player-atlas.workers.dev`, Worker `www`, account `877776dfd5a7c2cc7304cb6456115313` |
-| Database | D1 `a5d65c76-5b23-49d1-bf45-49383957a680`, migrations `0001` and `0002` applied |
+| Database | D1 `a5d65c76-5b23-49d1-bf45-49383957a680`, migrations `0001`–`0006` applied |
 | Data | 38 players, 3 ratings on 3 of them, no accounts, rating open to anyone |
 | `main` | deploys itself — every push runs the tests, then migrations, then `wrangler deploy` |
 
 Ratings have started arriving from whoever has found the site, but only just: **3
 community ratings, 0 professional, spread over 3 players** — `boxer`, `jaehoon` and
-`free`, one each, re-checked against the live API on 2026-10-11. They are unattributable
+`free`, one each, re-checked against the live API on 2026-10-13. They are unattributable
 by construction — a voter id is a browser token that resets in two clicks. Three rows is
 small enough that [accounts/06](accounts/06-legacy-ratings-after-accounts.md), which
 decides what becomes of them once accounts exist, can probably be answered with "discard"
@@ -30,13 +30,13 @@ closed issues, prototype — is deliberately left that way rather than kept curr
 claim against the code before building on it; several pages it calls `planned` are built,
 and one footer link it never mentions exists.
 
-One plan *is* current, and as of 2026-10-12 it is **finished and ready to build**:
-[admin-player-crud/spec.md](admin-player-crud/spec.md), labelled `ready-for-agent`. Every
-decision on its map is resolved, the spec folds all of them in, and
-[admin-player-crud/map.md](admin-player-crud/map.md) is **closed** — read the map only for
-*how* a decision was reached, never to find out what is open, because nothing is. This is
-the one plan in `.scratch/` that describes what will be built rather than what was decided
-once; build from the spec.
+`admin-player-crud/` used to be the exception — the one plan describing what would be
+built rather than what was decided once. **It was built and merged on 2026-10-12** (#12),
+so it is no longer an exception: its spec, map and issues are now history like everything
+else here. Read
+[admin-player-crud/spec.md](admin-player-crud/spec.md) for the argument behind a shape in
+the code, not as a description of the code. **Nothing in `.scratch/` now describes work
+waiting to be built.**
 
 ## Do this first
 
@@ -64,11 +64,13 @@ for a wrong URI to break, so it is provisioning for sign-in rather than a defect
 
 ## Then, by value
 
-**~~moderation/01 — rate limiting~~ — resolved 2026-10-12, and it is off this list.** The
-answer to *does the delete wait for it* turned out to be that there was nothing to wait
-for: the Workers `ratelimit` binding went GA in 2025 and needs no KV, no D1 and no
-provisioning, so the limit is fifteen lines and lives in **admin-player-crud's own spec**,
-shipping in the same build session as the delete.
+**~~moderation/01 — rate limiting~~ — resolved 2026-10-12 and now shipped.** The answer
+to *does the delete wait for it* turned out to be that there was nothing to wait for: the
+Workers `ratelimit` binding went GA in 2025 and needs no KV, no D1 and no provisioning, so
+the limit was fifteen lines and went out in the same commit as the delete.
+`POST /api/admin/login` is live at **5 failed attempts per 60s per `CF-Connecting-IP`,
+then 429**, the binding is `LOGIN_LIMIT` in `wrangler.jsonc`, and `.limit()` sits in the
+failure branch after the key check so a correct login never spends budget.
 [moderation/01](moderation/01-rate-limit-admin-login.md) is closed and its body rewritten,
 because both options it recommended were wrong — see the traps below. Its one surviving
 instruction, *apply it to `/api/auth/*`*, is now a line item on
@@ -78,79 +80,57 @@ What it did **not** cover, deliberately: `POST /api/pro/verify` is still unthrot
 the weaker of the two guessable endpoints, because `src/worker.js:157` takes an
 admin-supplied invite code at ≥ 8 characters. Left alone only because
 [accounts/05](accounts/05-retire-pro-invite-surface.md) deletes that surface. If sign-in
-slips, this is worth revisiting.
+slips, this is worth revisiting — and it is now a ten-line copy of something that already
+works in `src/worker.js`, not a design question.
 
-**[frontend/01](frontend/01-unrated-players-in-ranked-views.md) — unrated players.** The
-leaderboard route drops anyone with no ratings, and only 3 of the 38 have any, so the public
-site currently opens showing **3 players**. Worse than "nearly empty" as previously written,
-and arguably worth doing before the two above it: it is the first thing every visitor sees,
-and it also hides newly created players from the admin who just made them.
+**[frontend/01](frontend/01-unrated-players-in-ranked-views.md) — unrated players, and
+arguably worth doing before sign-in.** The leaderboard route drops anyone with
+no ratings, and only 3 of the 38 have any, so the public site still opens showing **3
+players** — re-checked live 2026-10-13. It was already the first thing every visitor sees.
+What changed on 2026-10-12 is that an admin can now create a player through the form, and
+the player they just created does not appear on the site at all until someone rates them.
+Cheap, visible, and it blocks nothing.
 
-**[admin-player-crud](admin-player-crud/spec.md) — the admin can create players and nothing
-else.** `POST /api/admin/players` creates; there is no update and no delete anywhere in the
-API, so a typo in a name is permanent and the Admin page renders only stats and a ratings
-table. Charted as a wayfinder map on 2026-10-11 and **done planning on 2026-10-12**: all five
-tickets resolved, the map closed, and
-[admin-player-crud/spec.md](admin-player-crud/spec.md) written and labelled
-`ready-for-agent`. **It is the only thing on this list that is fully specified and waits on
-no human** — unlike sign-in, which needs a Discord application registered first. Build from
-the spec; the map and the issue files are the arguments behind it, not a second source of
-truth.
+**~~admin-player-crud~~ — shipped 2026-10-12 in #12, and off this list.** The admin could
+create a player and nothing else; now `POST`, `PUT` and `DELETE /api/admin/players/:slug`
+all exist, the Admin page carries a form with a roster rail beside it, and `players` has a
+`form` column and an `updated_at`. Migrations `0003`–`0006` are under `migrations/` and
+applied — the `0005` delete-cascade trigger and the `0006` unique index among them.
+The full `d1-migrations` checklist **was** run for this release, including the previous
+release against the new schema. Verified against the live API on 2026-10-13: 38 players,
+every row carrying `form` and a flat `ratings` count, `PUT` and `DELETE` answering `403`
+without the admin key.
 
-The spec already folds in
-[contract.md](admin-player-crud/issues/03-form-behaviour-contract/contract.md) (routes,
-rejections, caps, form behaviour) and
-[rate-limit.md](admin-player-crud/issues/04-destructive-routes-and-rate-limiting/rate-limit.md)
-(the limiter), both near enough verbatim, so neither needs re-reading to build.
+Read [admin-player-crud/spec.md](admin-player-crud/spec.md) only for *why* something has
+the shape it has. The code is the truth now, and the commit message on `9ee0da8` is the
+honest account of what was verified by hand, since nothing in CI covers a route.
 
-**It names two new pure modules as its test seams**, which is the one thing in it that no
-ticket decided: `src/players.js` (`validatePlayerInput`, `CAPS`, called by both `POST` and
-`PUT` so the two cannot drift) and `public/app/playerForm.js` (`formMode`, `formValues`,
-`canDelete`, `resultFor`). The repo's existing one-pure-module-per-concern idiom, and the
-reason four of the eight required assertions are now `npm test` rather than a `curl` — see
-the route-testing trap below.
+**Three tickets survived it**, none blocking anything:
 
-Delete was decided as a **hard** delete, against the recommendation on the map — it
-cascades to that player's ratings *and* their `player_stats` row, and the typed-slug guard
-is the only line of defence in front of it. Needs no accounts, so it does not queue behind
-sign-in.
+- [03/tickets/01](admin-player-crud/issues/03-form-behaviour-contract/tickets/01-per-player-rating-rows-have-no-endpoint.md)
+  — the per-player disclosure under the form shows a **count and a link** to the global
+  table, because no endpoint serves one player's rating *rows*. Decide route versus filter
+  when someone wants them.
+- [01/tickets/04](admin-player-crud/issues/01-admin-page-layout/tickets/04-where-the-global-ratings-table-goes.md)
+  — where the global ratings table lives long term, and whether `Load ratings` stays a
+  button. Properly owned by
+  [moderation/03](moderation/03-ban-accounts-and-moderate-ratings.md).
+- [04/tickets/01](admin-player-crud/issues/04-destructive-routes-and-rate-limiting/tickets/01-no-worker-level-test-harness.md)
+  — no route-level harness. Still the gap behind four hand-checked guarantees; see the
+  route-testing trap below.
 
-**Correction, 2026-10-12**: this page used to say "nothing restores them", and the map said
-"irreversibly". Both were reasoning from `wrangler rollback`, which is no help — but **D1
-Time Travel restores rows**, to any minute in the last 7 days on this account's free plan,
-automatically and with no setup. See the traps below. Nothing is built on it and no
-decision changed; the point is that a build session reading the old wording would believe
-the roster is unrecoverable, and it is not.
-
-04 also put a rate limit on `POST /api/admin/login` into that map's spec — the thing that
-used to be moderation/01 — so the delete no longer ships behind a login that throttles
-nothing.
-
-The schema is decided and **four migration files are written but deliberately not under
-`migrations/`** — `players.form` and `players.updated_at` in
-[issues/02-migration-shape/](admin-player-crud/issues/02-migration-shape/), a delete-cascade
-trigger and a unique index on `players.name` in
-[issues/03-form-behaviour-contract/](admin-player-crud/issues/03-form-behaviour-contract/).
-In this repo a migration that reaches `main` is a migration that has been applied, so
-moving all four is the build session's first act, not this map's.
-
-**None of them can realistically fail on apply, and that took work for one of them.**
-`CREATE UNIQUE INDEX players_name_unique` dies outright if two players already share a
-name — inside `npm run deploy`, in the same window the ADD COLUMN trap above describes — so
-`0006` renames colliding handles to `<name> #<id>` first and creates the index second, in
-one file, the way `0004` pairs its ADD COLUMN with its backfill. It is a no-op against
-today's roster: verified live 2026-10-11, 38 players, no duplicate exact, case-insensitive
-or after slugification.
-
-All four were applied and tested together from `0001` forward against SQLite 3.45.1,
-including against a roster seeded with deliberate duplicates. That is **not** the
-`d1-migrations` verification checklist, which still has not been run.
+Delete shipped as a **hard** delete, against the recommendation on the map — it cascades to
+that player's ratings *and* their `player_stats` row, and the typed-slug guard in a
+`showModal()` is the only line of defence in front of it. **D1 Time Travel is what restores
+a player deleted by mistake**, within 7 days on this free plan, and it is a destructive
+whole-database rewind rather than a row-level undo; see the traps below.
 
 Lower: [stats/01](stats/01-history-means-vs-medians.md) (history shows means while the radar
 beside it shows medians — same data, visibly different numbers),
 [player-profiles/01](player-profiles/01-profile-image-and-form-field.md) (narrowed
-2026-10-11 to the image and the rights question under it; its Form column and admin editing
-moved onto the map above, and the filename is now stale),
+2026-10-11 to the image and the rights question under it — its Form column and admin
+editing shipped with admin-player-crud, so only the image is left and the filename is now
+stale),
 [frontend/02](frontend/02-header-row-overflow.md),
 [frontend/03](frontend/03-compare-up-to-four-players.md).
 
@@ -190,9 +170,10 @@ moved onto the map above, and the filename is now stale),
   a player with two ratings and a `player_stats` row, and you get **2 orphan ratings and 1
   orphan stat** — which SQLite's rowid reuse then hands to the next player created, as
   their ratings and their cached scores. Wrong numbers on a live profile, no error
-  anywhere. admin-player-crud's staged `0005_player_delete_cascade.sql` settles it with an
-  `AFTER DELETE` trigger, which fires regardless of the pragma; **do not delete it as
-  redundant with the FK clause it duplicates.**
+  anywhere. `migrations/0005_player_delete_cascade.sql`, applied 2026-10-12, settles it
+  with an `AFTER DELETE` trigger, which fires regardless of the pragma; **do not delete it
+  as redundant with the FK clause it duplicates.** The delete route was checked by hand
+  against a real player and left zero rows in both child tables.
 - **`wrangler rollback` is not the only restore, and the obvious reading of "forward-only"
   is wrong about rows.** Migrations are forward-only and rollback restores code, both true —
   but **D1 Time Travel** restores the database itself to any minute in a window,
@@ -201,7 +182,8 @@ moved onto the map above, and the filename is now stale),
   Caveats that stop it being a backup strategy: it is a *destructive whole-database*
   overwrite, so recovering one deleted row reverts every write since that minute; it needs a
   human with Wrangler authenticated against the account; and it expires silently after a
-  week. Nothing is built on it. Found while deciding
+  week. Nothing is built on it — but since the delete route shipped on 2026-10-12 it is
+  the only thing standing behind a mistyped confirmation. Found while deciding
   [admin-player-crud/04](admin-player-crud/issues/04-destructive-routes-and-rate-limiting.md),
   where two files in this repo — including this one — were asserting the opposite.
 - **Zone-level Cloudflare features do not exist for a `workers.dev` host.** WAF rules,
@@ -215,30 +197,53 @@ moved onto the map above, and the filename is now stale),
   provisioning call, `namespace_id` is just an integer you pick, and it adds no storage read
   to the request. Needs Wrangler ≥ 4.36.0. If anything else in this repo ever reaches for a
   dashboard-level control, check this first.
-- **Nothing in this repository tests a route.** `npm test` is `node --test`, and both suites
-  import modules and assert on pure functions — `test/stats.test.js` on `src/stats.js`,
-  `test/frontend.test.js` on six modules out of `public/app/`. Nothing boots `src/worker.js`,
+- **Nothing in this repository tests a route.** `npm test` is `node --test`, and all three
+  suites import modules and assert on pure functions — `test/stats.test.js` on
+  `src/stats.js`, `test/players.test.js` on `src/players.js`, `test/frontend.test.js` on
+  six modules out of `public/app/`. Nothing boots `src/worker.js`,
   makes a request, or has an `env`. So a route-level guarantee ships asserted by hand or
   not at all. Do not read a green CI run as covering one.
-  **`admin-player-crud/spec.md` works around this rather than waiting for it**: the caps,
-  the required fields and the whole Selection-to-form path move into two new pure modules
-  (`src/players.js`, `public/app/playerForm.js`) that `node --test` can import. **Four
-  things stay manual** and the spec lists them as such — the `409` on a duplicate name, the
-  `PUT` that moves `updated_at`, the cascade leaving zero rows in both child tables, and
-  the six-`curl` check on the rate limit whose final `200` is the half that matters.
+  **admin-player-crud worked around this rather than waiting for it**, and those seams
+  now exist: `src/players.js` (`validatePlayerInput`, `CAPS`, imported by both `POST` and
+  `PUT` so they cannot drift) and `public/app/playerForm.js` (`formMode`, `formValues`,
+  `canDelete`, `deletePrompt`, `resultFor`), covered by `test/players.test.js` and the
+  additions to `test/frontend.test.js`. **Four guarantees are hand-checked and nothing
+  re-checks them** — the `409` on a duplicate handle, the `PUT` that moves `updated_at`,
+  the cascade leaving zero rows in both child tables, and the six-`curl` limiter check
+  whose final `200` is the half that matters. They passed once, on 2026-10-12, against a
+  running Worker; a change touching any of them has to repeat that by hand. Recorded in
+  `9ee0da8` and in
   [admin-player-crud/04/tickets/01](admin-player-crud/issues/04-destructive-routes-and-rate-limiting/tickets/01-no-worker-level-test-harness.md).
+- **The `ratelimit` binding works under `wrangler dev`**, and `wrangler dev` supplies a
+  `CF-Connecting-IP`. admin-player-crud's spec recorded both as undocumented and assumed
+  the limiter could only be exercised against a deployed Worker; it can be exercised
+  locally. **But it keys on that header, and a request without one is not limited at all** —
+  which is correct on Cloudflare, where the header is injected at the edge, and a trap for
+  anyone testing through something that strips it.
+- **D1's `meta.changes` counts matched rows, not differing rows.** So `PUT` on a player
+  whose fields are unchanged still reports `1` and returns `200`; the `404` branch, which
+  keys on `changes === 0`, cannot misfire on a no-op save. Three identical `PUT`s inside
+  one second all return `200`. Worth knowing before anyone uses `changes` to detect "did
+  anything actually change", because it does not answer that question.
 - **CI deploys show as *deployed by unknown*** in the Cloudflare dashboard. An API token has
   no user session behind it; that is expected, not a misconfiguration.
 - **`seed/demo.sql` must never touch production.** It holds `PRO-DEMO-2026`, published in
   this repo, exchangeable for a professional token valid 30 days on the panel weighted 2:1.
 - **Wrangler builds its asset manifest at startup.** Adding a directory under `public/`
   404s until `docker compose restart atlas`.
-- **Two tints, two meanings.** `--role` colours the chrome and says who you are; `--lens`
-  colours the data and says which panel you are reading. Collapsing them makes an admin see
-  amber scores, which reads as a fourth panel that does not exist.
+- **Two tints, two meanings — and since 2026-10-12 a third token that is neither.**
+  `--role` colours the chrome and says who you are; `--lens` colours the data and says
+  which panel you are reading. Collapsing them makes an admin see amber scores, which
+  reads as a fourth panel that does not exist. `--danger` is what cannot be undone: the
+  delete button, the guard, a failed result. All three are commented in `:root`, and
+  site-wide totals deliberately take `--ink` because they belong to no panel. `.err` and
+  `.result.ok` are still hardcoded near-misses of the red and the green.
 - **`planned` means not built yet, and nothing else.** An item a role may not use is absent
   from the DOM, not dimmed. Only the header renders one now; `footer()` has no branch for
-  it, so a footer link that is not built needs that branch back.
+  it, so a footer link that is not built needs that branch back. It also has to be *taken
+  back* when the thing is built: the public profile went on rendering Form as `planned`
+  with "No column for this yet" after `0003` added the column, and the build had to notice
+  that by hand.
 - **Nothing on the site may load from another origin, and a test enforces it.** It walks
   `index.html` and all of `public/app/` for an `http(s)` `src`, `href` or `url()` and fails
   on any, because a third-party request falsifies the privacy page. This will bite
@@ -268,7 +273,7 @@ moved onto the map above, and the filename is now stale),
   permission covers Settings → Rules. Either the owner creates the ruleset, or the
   repository moves to an organisation where an Admin role exists. Verifiable without any
   access: `api.github.com/repos/Nodachi18/esports-player-atlas/branches/main` reports
-  `protected`, currently `false`.
+  `protected`, still `false` on 2026-10-13.
 - `gh` is not authenticated on this machine (`gh auth status`: "not logged into any GitHub
   hosts"), so pull requests have to be opened in the web UI until `gh auth login` is run.
 - Whether to add a payment method and gate this after all, which would reverse the public

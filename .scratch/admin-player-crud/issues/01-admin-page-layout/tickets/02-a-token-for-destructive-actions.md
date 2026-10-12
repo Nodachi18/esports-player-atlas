@@ -1,7 +1,7 @@
 # Destruction needs a colour that is neither tint
 
 Type: task
-Status: open
+Status: resolved
 Blocked by: —
 Map: ../../../map.md
 Found by: ../prototype.md
@@ -38,3 +38,23 @@ currently documented as exhaustive and would no longer be:
 ## Check while you are there
 
 `.result.ok` uses `#6fd08c`, also hardcoded. Same question, lower stakes.
+
+## Answer
+
+**Resolved 2026-10-12 by the build (`9ee0da8`): `--danger` and `--danger-sunk` are tokens
+in `:root`, with the rule written beside `--role` and `--lens`.**
+
+```
+  --danger: #ff7a7a;
+  --danger-sunk: #1d0f12;
+```
+
+The comment above them states the rule the ticket asked for — destruction is neither tint,
+amber would make it chrome and `--lens` would make it look like a score — and `.result.bad`
+now points at the token instead of repeating the hex. The delete button, its disabled
+state and the guard's border all use it.
+
+**Two near-misses survive**, both the "check while you are there" half of this ticket and
+neither worth reopening on its own: `.err` is still `#ff9b9b` and `.result.ok` is still
+`#6fd08c`. Fold them in next time either line is touched — `.err` is a failure, so it is
+the same token; the green wants one of its own if it ever gets a second use.

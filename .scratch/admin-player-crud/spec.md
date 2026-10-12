@@ -1,12 +1,24 @@
 # Admin player CRUD
 
-Status: `ready-for-agent`
+Status: **built.** Shipped 2026-10-12 in #12 (`9ee0da8`), near enough as written.
 Map: [map.md](map.md) — closed by this spec
 Written: 2026-10-12, from [issues/05-handoff-spec.md](issues/05-handoff-spec.md)
 
-Everything here is decided. A build session implements it without reopening any of it.
-Where a section folds in a file written as spec input, the file is named — read it only if
-you want the argument behind the decision, not to find out what the decision is.
+**This is no longer a build instruction.** It was one, it was followed, and the code is the
+truth now — read it for *why* something in `src/players.js`, `src/worker.js`,
+`public/app/playerForm.js` or `migrations/0003`–`0006` has the shape it has, not to find
+out what is there. Where a section folds in a file written as spec input, the file is
+named.
+
+Three things the build found that this spec got wrong or left open, recorded in `9ee0da8`
+and in [../HANDOFF.md](../HANDOFF.md):
+
+- The `ratelimit` binding works under `wrangler dev`, which this spec recorded as
+  undocumented, and `wrangler dev` supplies `CF-Connecting-IP`.
+- D1's `meta.changes` counts matched rows, not differing rows, so the `PUT`'s `404` branch
+  cannot misfire on an unchanged row.
+- The public profile was still rendering Form as `planned` after `0003` added the column.
+  It renders the real value now.
 
 ## Problem Statement
 
