@@ -46,13 +46,13 @@ migration step and before `wrangler deploy`.
 **2026-10-11** — [03](03-form-behaviour-contract.md) resolved and added **two** more
 migrations, so "two migrations, both additive" is now four.
 
-[`0005_player_delete_cascade.sql`](03-form-behaviour-contract/0005_player_delete_cascade.sql)
+[`0005_player_delete_cascade.sql`](../../../migrations/0005_player_delete_cascade.sql)
 is an `AFTER DELETE` trigger on `players` clearing `ratings` and `player_stats`. Decision 2
 rested entirely on `ON DELETE CASCADE`, which only fires when foreign keys are enforced —
 and `foreign_keys` is a per-connection pragma nothing here sets. Triggers ignore it, so the
 cascade holds on every connection. A no-op when enforcement is on.
 
-[`0006_player_name_unique.sql`](03-form-behaviour-contract/0006_player_name_unique.sql)
+[`0006_player_name_unique.sql`](../../../migrations/0006_player_name_unique.sql)
 makes `name` unique case-insensitively, because decision 3 makes the header search the only
 way to pick a Player to edit and two rows reading `Flash` is an unusable picker.
 

@@ -2,7 +2,7 @@
 
 Status: ready-for-human
 Source: navigation-overhaul spec §10, research at ../navigation-overhaul/research/01-discord-oauth.md
-Blocked by: 02
+Blocked by: 02, ../content-pages/05-terms-of-service.md
 
 ## Problem
 
@@ -36,6 +36,16 @@ The deployed host is `<worker-name>.<account-subdomain>.workers.dev`; the Worker
 `www` (see `wrangler.jsonc`), hence the `www.` prefix that the exploratory entry was missing.
 Plain `http://localhost` is accepted by the portal and multiple URIs may coexist on one
 application — both confirmed in the portal on 2026-10-10.
+
+While you are in there, fill the **Terms of Service URL** field on General Information:
+
+```
+https://www.esports-player-atlas.workers.dev/terms
+```
+
+That page is [content-pages/05](../content-pages/05-terms-of-service.md), and it ships
+before this ticket rather than with it. Nothing in this flow is known to be gated on the
+field — it is filled because the page exists and the field is free.
 
 Then store the credentials. Never in this repo:
 
@@ -122,3 +132,25 @@ The OAuth `state` round-trip is the part that wants it most: it is the one unaut
 endpoint in this flow that an attacker can call repeatedly with values of their choosing,
 and [02](02-token-kind-discriminator.md) exists because that value is what creates the
 token-confusion risk in the first place.
+
+**2026-10-16 — a terms of service page now blocks this ticket.**
+[content-pages/05](../content-pages/05-terms-of-service.md) is `ready-for-agent` and ships
+standalone, before sign-in.
+
+The reason it blocks rather than follows: this ticket is what turns a rating from a browser
+token that resets in two clicks into something attributable to one identifiable person, and
+the site has nowhere that states the rules that then apply — what gets an account blocked,
+what happens to its ratings, that one account per person is expected. The legal notice is
+about the operator and the privacy statement is about data; neither is about what the reader
+may do. Shipping sign-in first means the rules arrive after the conduct they govern.
+
+It is the second published promise attached to this ticket, alongside the privacy page's
+`planned` Discord section. The terms page states rules 7-9 — sign-in with Discord, blocking,
+and a blocked account's ratings leaving the published scores — in the present tense while
+none of it is reachable. **That is not a block to rewrite when this lands; it is the rule set
+this ticket has to make true.** In particular, rule 9 is specified as *exclusion from the
+aggregates*, not deletion, which is a constraint on how blocking gets built in
+[../moderation/03](../moderation/03-ban-accounts-and-moderate-ratings.md).
+
+Also: rule 7 says no email address is stored. A test on the terms page fails if the scope
+string here ever gains `email`.

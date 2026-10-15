@@ -21,7 +21,8 @@ become attributable, blockable and moderatable. That promise is unredeemed until
   the cookie lapses.
 - An admin surface for flagging and unflagging a rating, rather than reading the table and
   calling the endpoint by hand.
-- A decision on what a ban does to ratings already cast: excluded like flagged ones, or kept.
+- A ban **excludes** the ratings already cast, rather than deleting them. Decided
+  2026-10-16 — see the comment below.
 
 ## Questions for triage
 
@@ -36,3 +37,31 @@ become attributable, blockable and moderatable. That promise is unredeemed until
 
 An admin can ban an account from the UI, the ban bites on the next request, and flagged
 ratings can be reviewed without touching the API by hand.
+
+## Comments
+
+**2026-10-16 — "what a ban does to ratings already cast" is answered: exclusion, not
+deletion.** Settled while writing
+[../content-pages/05](../content-pages/05-terms-of-service.md), which had to state the rule
+on a public page and so could not leave it open.
+
+Flagged rows already drop out of the aggregates via `refreshStats`; a blocked account's
+ratings take the same route. Deleting them would be irreversible, would leave an unban
+unable to restore anything, and would throw away the evidence the block was based on.
+
+The published wording is **"ratings cast by a blocked account are removed from the site"**,
+which is true to a reader — they stop being published — without promising deletion.
+
+**The reason exclusion specifically: it leaves room for a strike rule**, a count of flagged
+ratings per account leading to a block, which is impossible once the rows are gone. The rule
+is not decided and is deliberately absent from the terms page.
+
+**Which makes this ticket's third triage question sharper, not softer.** Flagging is partly
+automatic via z-score outlier detection and `README.md` warns it misclassifies legitimate
+ratings. Under a strike rule an automatic flag feeds an automatic block, and a review signal
+becomes a punishment with nobody in the loop. Whether a human confirms is still open here,
+and it is now the question that decides whether a strike rule is safe to build at all.
+
+**Prerequisite note:** the terms page ships before sign-in and before this ticket, so the
+rules a block enforces are published before there is anything to block. Building a ban that
+contradicts them is the failure mode to watch for.

@@ -718,5 +718,115 @@ export const privacyPage = state => `
     </p>
   </section>`;
 
+// ---- terms of service ----
+
+/**
+ * House rules, not a contract. No acceptance clause, no liability limitation, no governing
+ * law, no "we may update these terms at any time" — that boilerplate is written for a
+ * commercial service with something to enforce, and this is a private hobby project where
+ * no money changes hands. Same reasoning that threw the German Haftung blocks out of the
+ * legal notice. See `.scratch/content-pages/05-terms-of-service.md`.
+ *
+ * Ten rules and nothing else. What is deliberately absent: any strike rule, any ban
+ * duration or appeal process, and anything about ratings cast before accounts existed.
+ * None of it is decided, and a terms page that invents policy is worse than a short one.
+ *
+ * No mechanism, carried from the Help page's rule: no voter hash, no snowflake, no browser
+ * storage, no table names, no thresholds. Rule 4 says the professional panel counts for
+ * more; it does not say how much, because the reader asking what the rules are is not
+ * asking for the formula.
+ *
+ * Heading is "Terms of service" alone. The bilingual treatment on the legal notice and the
+ * privacy page is for words a German reader actively searches the page for — "Impressum"
+ * when they believe provider information is missing, "Datenschutz" when they want their
+ * data rights. Nobody scans a hobby site for "Nutzungsbedingungen", and "AGB" names the
+ * contract this page is not.
+ *
+ * ---
+ *
+ * THE ACCOUNT RULES ARE PUBLISHED AHEAD OF THE CODE, ON PURPOSE. "Your account" states
+ * rules for a sign-in that does not exist yet, in the present tense, because a rule has to
+ * be published before the conduct it governs — not marked `planned` and not hedged.
+ *
+ * So this page is a promise the implementation has to keep, and these are the four things
+ * that would break it. If you are building any of them, you are editing this page too:
+ *
+ *   1. The OAuth scope. The page says "never your email address", so the scope stays
+ *      `identify`. A test in test/frontend.test.js fails if any scope in src/ asks for one.
+ *   2. What is stored about an account. The page names the Discord account id, username and
+ *      avatar. Anything else stored is a third thing this page has not told the reader.
+ *   3. What blocking does. The page says a blocked account cannot sign in and its ratings
+ *      are removed from the site. The implementation excludes them from the published
+ *      scores rather than deleting the rows — deliberately, see the ticket — but anything
+ *      that leaves them published makes this false.
+ *   4. One account per person. If that stops being the rule, it stops being on this page.
+ *
+ * A second test trips the moment Discord auth routes land in src/, so none of the above can
+ * ship without someone re-reading this.
+ */
+export const TERMS_UPDATED = '16 October 2026';
+
+export const termsPage = state => `
+  <section class="prose" aria-label="Terms of service">
+    <h1>Terms of service</h1>
+
+    <h2>What this site is</h2>
+    <p>
+      Esports Player Atlas is a private, non-commercial hobby prototype. It may change,
+      break or disappear. Nothing here is guaranteed to be kept, and nothing on it is
+      offered as a service you can rely on.
+    </p>
+
+    <h2>What a rating is</h2>
+    <p>
+      Every rating is an opinion submitted by a visitor about a named real person. Ratings
+      are not checked, not verified, and not statements of fact. The combined score weights
+      the professional panel above the community panel — a product choice, not a
+      measurement of anybody.
+    </p>
+
+    <h2>Rating</h2>
+    <p>
+      You may rate each player once per panel.
+    </p>
+    <p>
+      An administrator can flag a rating. A flagged rating stops counting toward the
+      published scores.
+    </p>
+
+    <h2>Your account</h2>
+    <p>
+      Rating means signing in with Discord. This site holds your Discord account id, and
+      your username and avatar to show you who you are signed in as. Never your email
+      address.
+    </p>
+    <p>
+      One account per person. Rating from more than one is grounds for blocking.
+    </p>
+    <p>
+      A blocked account cannot sign in, and the ratings it has cast are removed from the
+      site.
+    </p>
+
+    <h2>If you appear on this site</h2>
+    <p>
+      You were not asked. Ask to be removed and you will be, along with every rating
+      attached to you:
+    </p>
+    <p>
+      <a class="extlink" href="${CONTACT_CARD}" target="_blank" rel="nofollow noopener noreferrer">
+        Contact card on falkenstein-harz.de <span aria-hidden="true">↗</span>
+      </a>
+    </p>
+    <p class="note">
+      Who runs this site is on the
+      <a class="inlink" href="${hrefFor(state, { page: 'legal' })}" data-page="legal">legal notice</a>;
+      what it does with data is on the
+      <a class="inlink" href="${hrefFor(state, { page: 'privacy' })}" data-page="privacy">privacy statement</a>.
+    </p>
+
+    <p class="note">Last updated ${TERMS_UPDATED}.</p>
+  </section>`;
+
 export const plannedPage = (title, detail) =>
   `<div class="block"><b>${esc(title)}${plannedTag}</b><span>${esc(detail)}</span></div>`;

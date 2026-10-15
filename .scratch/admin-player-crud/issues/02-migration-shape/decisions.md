@@ -132,8 +132,8 @@ sequence blocked by a half-applied mixed file.
 ## Where the files are, and why not in `migrations/`
 
 They are staged here, as
-[`0003_player_form.sql`](0003_player_form.sql) and
-[`0004_player_updated_at.sql`](0004_player_updated_at.sql), not under `migrations/`.
+[`0003_player_form.sql`](../../../../migrations/0003_player_form.sql) and
+[`0004_player_updated_at.sql`](../../../../migrations/0004_player_updated_at.sql), not under `migrations/`.
 
 The map says no migration is applied from it. But in this repo **the file is the apply**:
 every push to `main` runs `d1 migrations apply` before `wrangler deploy`, so merging the

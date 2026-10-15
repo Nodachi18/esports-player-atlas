@@ -2,12 +2,17 @@
 
 Everything that came out of [the ticket](../03-form-behaviour-contract.md).
 
+> **The four `.sql` files are no longer here.** They were moved to `migrations/` and
+> applied on 2026-10-12 as the build session's first act, exactly as described below. The
+> links in the table point at where they live now; everything else on this page is the
+> record of why they have the shape they have.
+
 | File | What it holds |
 |---|---|
 | [contract.md](contract.md) | The contract itself: routes, rejections, form behaviour. **This is what [05](../05-handoff-spec.md) folds into `spec.md`** |
 | [decisions.md](decisions.md) | Why it has this shape, including three answers that were reversed mid-session |
-| [0005_player_delete_cascade.sql](0005_player_delete_cascade.sql) | A **third** migration: makes the delete cascade unconditional |
-| [0006_player_name_unique.sql](0006_player_name_unique.sql) | A **fourth**: dedupe, then the unique index. Both staged, **not** in `migrations/`, like 02's two |
+| [0005_player_delete_cascade.sql](../../../../migrations/0005_player_delete_cascade.sql) | A **third** migration: makes the delete cascade unconditional. Applied 2026-10-12 |
+| [0006_player_name_unique.sql](../../../../migrations/0006_player_name_unique.sql) | A **fourth**: dedupe, then the unique index. Applied 2026-10-12, a no-op against the live roster |
 | [tickets/](tickets/) | New work this ticket uncovered |
 
 The ticket's `## Answer` is the short form. Read [contract.md](contract.md) to build from,

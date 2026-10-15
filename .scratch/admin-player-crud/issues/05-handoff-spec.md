@@ -88,9 +88,9 @@ spec input rather than as an argument to be re-read:
 them:
 
 1. **Two more migrations, making four.**
-   [`0005_player_delete_cascade.sql`](03-form-behaviour-contract/0005_player_delete_cascade.sql)
+   [`0005_player_delete_cascade.sql`](../../../migrations/0005_player_delete_cascade.sql)
    makes the delete cascade independent of foreign key enforcement, and
-   [`0006_player_name_unique.sql`](03-form-behaviour-contract/0006_player_name_unique.sql)
+   [`0006_player_name_unique.sql`](../../../migrations/0006_player_name_unique.sql)
    dedupes colliding handles before creating the unique index on `name`, so neither can
    realistically fail on apply.
 2. **The slug preview is gone**, with 01's four lines of copy for it. Slug derivation is

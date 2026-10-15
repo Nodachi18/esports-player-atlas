@@ -91,6 +91,7 @@ function render() {
     : state.page === 'legal'       ? views.legalPage()
     : state.page === 'privacy'     ? views.privacyPage(state)
     : state.page === 'help'        ? views.helpPage(state)
+    : state.page === 'terms'       ? views.termsPage(state)
     : views.plannedPage('Account', 'Your sign-in details, your own ratings, and editing them.');
 
   // Two tints, two meanings: the lens colours the data, the role colours the chrome.

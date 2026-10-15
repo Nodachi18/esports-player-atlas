@@ -5,7 +5,7 @@ import { CATEGORIES, panelScores, hasScores, ratingCount, vertex, polygonPoints 
 import { buildRanking, filterPlayers, pageOf, resolveSelection } from '../public/app/ranking.js';
 import { navigation, isReachable, FOOTER_LINKS, VISIBILITY } from '../public/app/nav.js';
 import { stateFromSearch, searchFromState, update, DEFAULT_STATE } from '../public/app/state.js';
-import { footer, helpPage, legalPage, privacyPage, CONTACT_CARD, CLOUDFLARE_PRIVACY } from '../public/app/views.js';
+import { footer, helpPage, legalPage, privacyPage, termsPage, TERMS_UPDATED, CONTACT_CARD, CLOUDFLARE_PRIVACY } from '../public/app/views.js';
 import { canDelete, deletePrompt, formMode, formValues, resultFor } from '../public/app/playerForm.js';
 
 const panel = (n, value) => ({
@@ -228,12 +228,12 @@ test('update never mutates and resets paging when the list changes', () => {
 const footerLink = key => FOOTER_LINKS.find(link => link.key === key);
 
 test('every footer link is built — nothing down there is planned any more', () => {
-  assert.deepEqual(FOOTER_LINKS.map(link => link.key), ['help', 'legal', 'privacy']);
+  assert.deepEqual(FOOTER_LINKS.map(link => link.key), ['help', 'legal', 'privacy', 'terms']);
   assert.ok(FOOTER_LINKS.every(link => link.visibility === VISIBILITY.visible));
 });
 
 test('a footer route survives a typed URL, in every session', () => {
-  for (const key of ['help', 'legal', 'privacy']) {
+  for (const key of ['help', 'legal', 'privacy', 'terms']) {
     assert.equal(isReachable(key, {}), true);
     assert.equal(isReachable(key, { adminKey: true }), true);
     assert.equal(stateFromSearch(`?page=${key}`).page, key);
@@ -242,7 +242,7 @@ test('a footer route survives a typed URL, in every session', () => {
 
 test('the footer renders every link as an openable anchor', () => {
   const html = footer(DEFAULT_STATE, {});
-  for (const key of ['help', 'legal', 'privacy']) {
+  for (const key of ['help', 'legal', 'privacy', 'terms']) {
     assert.match(html, new RegExp(`<a class="footlink" href="\\?page=${key}"[^>]*data-page="${key}"`));
   }
   assert.doesNotMatch(html, /planned|aria-disabled/);
@@ -633,4 +633,112 @@ test('only 200 and 201 are success', () => {
   for (const status of [0, 302, 418, 500, 502, 503]) {
     assert.equal(resultFor({ status, action: 'save', error: 'nope' }).tone, 'bad');
   }
+});
+
+// ---- terms of service ----
+
+// House rules published before the conduct they govern. These pin the three things that
+// would go stale without anyone noticing: the footer link, the register, and the one claim
+// on the page that a change elsewhere in the repo could silently falsify.
+
+test('Terms of service is a real footer link beside Privacy', () => {
+  assert.equal(footerLink('terms').visibility, VISIBILITY.visible);
+  assert.equal(footerLink('terms').label, 'Terms of service');
+  assert.equal(isReachable('terms', {}), true);
+  assert.match(footer(DEFAULT_STATE, {}), /data-page="terms"/);
+});
+
+// The reader is owed the rules, not the machine that enforces them. Same rule the Help page
+// is held to, and the same reason: a terms page that drifts into implementation stops being
+// something a person can read and starts describing how to work around it.
+test('Terms states rules, not mechanisms', () => {
+  const html = flat(termsPage(DEFAULT_STATE));
+  for (const jargon of ['voter hash', 'hashe?s?', 'snowflake', 'localStorage', 'sessionStorage',
+                        'cookies?', 'databases?', 'tokens?', 'endpoints?', 'API', 'aggregates?',
+                        'medians?', 'standard deviations?']) {
+    assert.doesNotMatch(html, new RegExp(`\\b${jargon}\\b`, 'i'), `Terms should not say "${jargon}"`);
+  }
+});
+
+// Rule 4 names no number on purpose, so there is nothing here to keep in step with
+// PRO_WEIGHT — the Help page already guards that word and one copy is enough.
+test('Terms says the professional panel counts for more without saying how much', () => {
+  const html = flat(termsPage(DEFAULT_STATE));
+  assert.match(html, /weights the professional panel above the community panel/);
+  assert.doesNotMatch(html, /\b(twice|three times|four times)\b/i);
+});
+
+// The account rules are published ahead of the code, in the present tense and unhedged: a
+// rule has to exist before the conduct it governs. Nothing on this page is marked planned.
+test('the account rules are stated as rules, not as plans', () => {
+  const html = flat(termsPage(DEFAULT_STATE));
+  assert.doesNotMatch(html, /planned|data-planned/, 'nothing on this page is marked planned');
+
+  // Scoped to the section: "you will be removed" is a promise to a rated person elsewhere
+  // on the page, and perfectly fine. Hedging is only a defect where a rule is being stated.
+  const section = html.match(/<h2>Your account<\/h2>[^]*?(?=<h2|<\/section>)/)[0];
+  assert.doesNotMatch(section, /\b(will|would|when they arrive|not yet|once|coming soon)\b/i,
+    'future tense turns a rule into a plan');
+  assert.match(section, /Rating means signing in with Discord/);
+  assert.match(section, /One account per person/);
+  assert.match(section, /A blocked account cannot sign in/);
+});
+
+// The tripwire. This page promises things the code does not do yet, so it has to be re-read
+// the moment the code catches up — and a note nobody opens is not a mechanism. This fails
+// as soon as Discord auth lands in src/, with the four claims that have to still be true.
+// Fixing it means checking the page, then deleting this test.
+test('sign-in has not landed yet — when it does, re-read the terms page', async () => {
+  const { readFile, readdir } = await import('node:fs/promises');
+  const files = (await readdir(new URL('../src', import.meta.url))).filter(f => f.endsWith('.js'));
+  for (const file of files) {
+    const source = await readFile(new URL(`../src/${file}`, import.meta.url), 'utf8');
+    assert.doesNotMatch(source, /auth\/discord|discord\.com\/api\/oauth2/i,
+      `${file}: Discord sign-in has landed. The terms page already states, in the present ` +
+      'tense, that the scope asks for no email address, that the site holds only the account ' +
+      'id, username and avatar, that one account per person is the rule, and that a blocked ' +
+      "account cannot sign in and its ratings leave the site. Confirm all four, then delete " +
+      'this test.');
+  }
+});
+
+// The one claim a change elsewhere could falsify without touching this page. Sign-in is
+// specified to request `identify` only (accounts/01), which is what keeps an email address
+// out of the database — and out of this promise.
+test('the promise that no email address is stored survives sign-in landing', async () => {
+  assert.match(flat(termsPage(DEFAULT_STATE)), /Never your email address/);
+
+  const { readFile, readdir } = await import('node:fs/promises');
+  const files = (await readdir(new URL('../src', import.meta.url))).filter(f => f.endsWith('.js'));
+  for (const file of files) {
+    const source = await readFile(new URL(`../src/${file}`, import.meta.url), 'utf8');
+    for (const line of source.split('\n')) {
+      if (!/scope/i.test(line)) continue;
+      assert.doesNotMatch(line, /email/i,
+        `${file}: an OAuth scope asking for email makes the terms page a lie`);
+    }
+  }
+});
+
+test('Terms carries a last-updated date and no change clause', () => {
+  const html = flat(termsPage(DEFAULT_STATE));
+  assert.match(html, new RegExp(`Last updated ${TERMS_UPDATED}`));
+  // "We may update these terms at any time" tells the reader nothing about what happens to
+  // them. The date does.
+  assert.doesNotMatch(html, /at any time|without notice|by continuing to use/i);
+});
+
+// Rules 2 and 10 are repeated from the legal notice rather than linked: a reader on either
+// page needs both facts, and half an answer plus a link is worse than two sentences twice.
+test('Terms repeats the ratings-are-opinions rule and the removal route', () => {
+  const html = flat(termsPage(DEFAULT_STATE));
+  assert.match(html, /not checked, not verified, and not statements of fact/);
+  assert.ok(html.includes(CONTACT_CARD), 'the removal route is reachable from this page');
+  assert.match(html, /rel="nofollow noopener noreferrer"/);
+});
+
+// accounts/06 is needs-triage and the privacy page has already published that the question
+// is open. Answering it here by accident would commit the project to something nobody chose.
+test('Terms does not answer what happens to ratings cast before accounts existed', () => {
+  assert.doesNotMatch(flat(termsPage(DEFAULT_STATE)), /existing ratings|ratings cast before|previous ratings/i);
 });
