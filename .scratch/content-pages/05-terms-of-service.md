@@ -1,6 +1,6 @@
 # Terms of service
 
-Status: ready-for-agent
+Status: resolved
 Type: task
 Source: grilling session 2026-10-16; prerequisite to
 [../accounts/01-discord-oauth-sign-in.md](../accounts/01-discord-oauth-sign-in.md)
@@ -124,12 +124,17 @@ see "Shipping before sign-in" below for how to write them now.
    time" is exactly the sentence [03](03-privacy-statement.md) decision 5 cut: it does not
    change what the reader knows about what happens to them.
 
-7. **No `planned` block.** [03](03-privacy-statement.md) used that device for its Discord
-   section and it was right there, because the thing was *decided and unbuilt*. The rules
-   this page does not state are *undecided*, and a visible block saying "we have not worked
-   out what gets you blocked" reads as an invitation rather than a disclosure. Ship what is
-   true; [../moderation/03](../moderation/03-ban-accounts-and-moderate-ratings.md) reopens
-   this page when it lands.
+7. **`planned` marks the account rules; it does not mark the ones this page omits.** Two
+   different cases, and conflating them is what the first draft of this decision did.
+
+   Rules 6-9 are *decided and unbuilt*, which is precisely the case
+   [03](03-privacy-statement.md) used the device for. They ship marked.
+
+   The rules this page does not state — a strike rule, ban duration, appeals — are
+   *undecided*. A visible block saying "we have not worked out what gets you blocked" reads
+   as an invitation rather than a disclosure, so there is none. Ship what is true;
+   [../moderation/03](../moderation/03-ban-accounts-and-moderate-ratings.md) reopens this
+   page when it lands.
 
 ## Shipping before sign-in
 
@@ -137,9 +142,17 @@ see "Shipping before sign-in" below for how to write them now.
 sub-task of sign-in, and it means the portal's Terms of Service URL has something to point
 at before Step 0 of [../accounts/01](../accounts/01-discord-oauth-sign-in.md) is run.
 
-Rules 1–5 and 10 are true of the site today, with zero accounts. Rules 6–9 are about a
-sign-in that does not exist yet. Write them in the present tense anyway — the page is
-published as the rules that apply, and sign-in lands before anyone can break them.
+Rules 1-5 and 10 are true of the site today, with zero accounts. Rules 6-9 are about a
+sign-in that does not exist yet, so they ship in their own section, **marked `planned`**,
+opening on "There are no accounts yet."
+
+**Corrected 2026-10-16, during implementation.** This section originally said to write them
+in the present tense. That was wrong, and decision 7 below is what makes it wrong: the
+`planned` device is right for a thing that is *decided and unbuilt*, and rules 6-9 are
+exactly that. "Rating requires signing in with Discord" is simply false on the live site
+today, and [01](01-help-and-legal-notice.md) already settled how this repo handles that
+case — the Help page says nobody can currently become a professional "rather than
+describing a route that cannot be walked". Same situation, same answer.
 
 What this page must **not** do is describe the current anonymous arrangement as though it
 were permanent. There is no rule to write about browser tokens: the voter id is an
@@ -198,3 +211,35 @@ copy only doubles the maintenance.
 - The three tests pass.
 - [../accounts/01](../accounts/01-discord-oauth-sign-in.md) Step 0 lists the Terms of
   Service URL alongside the redirect URIs.
+
+## Comments
+
+**2026-10-16 — built, and this ticket closes.** `?page=terms` renders, the footer carries a
+fourth real link, and eight tests cover it.
+
+**One deviation from the ticket as written**, recorded above: the account rules ship marked
+`planned` rather than in the present tense. The ticket contradicted itself — decision 7's
+own test for when the device applies ("decided and unbuilt") selects rules 6-9, and writing
+them as current would have put a false sentence on a page whose only value is being true.
+
+**What the implementation added that the ticket did not ask for:**
+
+- Two extra tests beyond the three specified. The specified three were the footer link, the
+  register, and the `email` scope. Added: that rule 4 names no number (which is what makes
+  skipping the `PRO_WEIGHT` duplicate safe), that the `planned` marking and its prose are
+  both present, that the last-updated date is there and no change clause crept in, that the
+  repeated rules 2 and 10 are actually repeated, and that the page has not quietly answered
+  [../accounts/06](../accounts/06-legacy-ratings-after-accounts.md).
+- A closing note linking the legal notice and the privacy statement. Decision 5 forbade
+  *replacing* repeated rules with links; it did not forbid telling a reader where the other
+  two pages are, which is one line and is what the privacy page already does.
+
+**Still outstanding, and not this ticket's to fix:** rule 9 is not deliverable against the
+current schema. There is no accounts table — migrations stop at `0006_player_name_unique.sql`
+— and `ratings` carries only `voter_hash`, with no column connecting a rating to an account.
+Either `ratings` gains an account reference or `voter_hash` becomes a hash of the Discord
+account id, which the [research](../navigation-overhaul/research/01-discord-oauth.md) §3.3
+already suggests for exactly this reason: so that bans have something durable to attach to.
+That needs its own ticket under `../accounts/`, and it blocks
+[../moderation/03](../moderation/03-ban-accounts-and-moderate-ratings.md) rather than this
+page.

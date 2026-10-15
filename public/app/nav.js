@@ -48,6 +48,7 @@ export const FOOTER_LINKS = [
   { key: 'help', label: 'Help', href: '/help', visibility: VISIBILITY.visible },
   { key: 'legal', label: 'Legal notice', href: '/legal', visibility: VISIBILITY.visible },
   { key: 'privacy', label: 'Privacy', href: '/privacy', visibility: VISIBILITY.visible },
+  { key: 'terms', label: 'Terms of service', href: '/terms', visibility: VISIBILITY.visible },
 ];
 
 /** Whether a route key is reachable in this session, for rejecting a stale URL. */
