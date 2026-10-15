@@ -741,6 +741,28 @@ export const privacyPage = state => `
  * when they believe provider information is missing, "Datenschutz" when they want their
  * data rights. Nobody scans a hobby site for "Nutzungsbedingungen", and "AGB" names the
  * contract this page is not.
+ *
+ * ---
+ *
+ * THE ACCOUNT RULES ARE PUBLISHED AHEAD OF THE CODE, ON PURPOSE. "Your account" states
+ * rules for a sign-in that does not exist yet, in the present tense, because a rule has to
+ * be published before the conduct it governs — not marked `planned` and not hedged.
+ *
+ * So this page is a promise the implementation has to keep, and these are the four things
+ * that would break it. If you are building any of them, you are editing this page too:
+ *
+ *   1. The OAuth scope. The page says "never your email address", so the scope stays
+ *      `identify`. A test in test/frontend.test.js fails if any scope in src/ asks for one.
+ *   2. What is stored about an account. The page names the Discord account id, username and
+ *      avatar. Anything else stored is a third thing this page has not told the reader.
+ *   3. What blocking does. The page says a blocked account cannot sign in and its ratings
+ *      are removed from the site. The implementation excludes them from the published
+ *      scores rather than deleting the rows — deliberately, see the ticket — but anything
+ *      that leaves them published makes this false.
+ *   4. One account per person. If that stops being the rule, it stops being on this page.
+ *
+ * A second test trips the moment Discord auth routes land in src/, so none of the above can
+ * ship without someone re-reading this.
  */
 export const TERMS_UPDATED = '16 October 2026';
 
@@ -772,14 +794,11 @@ export const termsPage = state => `
       published scores.
     </p>
 
-    <h2 data-planned="1">Your account ${plannedTag}</h2>
+    <h2>Your account</h2>
     <p>
-      <strong>There are no accounts yet.</strong>
-    </p>
-    <p>
-      When they arrive, rating will mean signing in with Discord. This site will hold your
-      Discord account id, and your username and avatar to show you who you are signed in
-      as. Never your email address.
+      Rating means signing in with Discord. This site holds your Discord account id, and
+      your username and avatar to show you who you are signed in as. Never your email
+      address.
     </p>
     <p>
       One account per person. Rating from more than one is grounds for blocking.
@@ -800,11 +819,13 @@ export const termsPage = state => `
       </a>
     </p>
     <p class="note">
-      Last updated ${TERMS_UPDATED}. Who runs this site is on the
+      Who runs this site is on the
       <a class="inlink" href="${hrefFor(state, { page: 'legal' })}" data-page="legal">legal notice</a>;
       what it does with data is on the
       <a class="inlink" href="${hrefFor(state, { page: 'privacy' })}" data-page="privacy">privacy statement</a>.
     </p>
+
+    <p class="note">Last updated ${TERMS_UPDATED}.</p>
   </section>`;
 
 export const plannedPage = (title, detail) =>

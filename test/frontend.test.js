@@ -668,15 +668,38 @@ test('Terms says the professional panel counts for more without saying how much'
   assert.doesNotMatch(html, /\b(twice|three times|four times)\b/i);
 });
 
-// The accounts section describes something nobody can reach yet. Marked planned, in the
-// repo's established sense — not built, and nothing else — rather than written in a present
-// tense that is false on the live site today.
-test('the accounts section is marked planned and says so in the prose', () => {
-  const html = termsPage(DEFAULT_STATE);
-  const heading = html.match(/<h2 data-planned="1">[^]*?<\/h2>/)[0];
-  assert.match(heading, /Your account/);
-  assert.match(heading, /<span class="tag">planned<\/span>/, 'planned means not built yet, and is said that way');
-  assert.match(flat(html), /<strong>There are no accounts yet\.<\/strong>/);
+// The account rules are published ahead of the code, in the present tense and unhedged: a
+// rule has to exist before the conduct it governs. Nothing on this page is marked planned.
+test('the account rules are stated as rules, not as plans', () => {
+  const html = flat(termsPage(DEFAULT_STATE));
+  assert.doesNotMatch(html, /planned|data-planned/, 'nothing on this page is marked planned');
+
+  // Scoped to the section: "you will be removed" is a promise to a rated person elsewhere
+  // on the page, and perfectly fine. Hedging is only a defect where a rule is being stated.
+  const section = html.match(/<h2>Your account<\/h2>[^]*?(?=<h2|<\/section>)/)[0];
+  assert.doesNotMatch(section, /\b(will|would|when they arrive|not yet|once|coming soon)\b/i,
+    'future tense turns a rule into a plan');
+  assert.match(section, /Rating means signing in with Discord/);
+  assert.match(section, /One account per person/);
+  assert.match(section, /A blocked account cannot sign in/);
+});
+
+// The tripwire. This page promises things the code does not do yet, so it has to be re-read
+// the moment the code catches up — and a note nobody opens is not a mechanism. This fails
+// as soon as Discord auth lands in src/, with the four claims that have to still be true.
+// Fixing it means checking the page, then deleting this test.
+test('sign-in has not landed yet — when it does, re-read the terms page', async () => {
+  const { readFile, readdir } = await import('node:fs/promises');
+  const files = (await readdir(new URL('../src', import.meta.url))).filter(f => f.endsWith('.js'));
+  for (const file of files) {
+    const source = await readFile(new URL(`../src/${file}`, import.meta.url), 'utf8');
+    assert.doesNotMatch(source, /auth\/discord|discord\.com\/api\/oauth2/i,
+      `${file}: Discord sign-in has landed. The terms page already states, in the present ` +
+      'tense, that the scope asks for no email address, that the site holds only the account ' +
+      'id, username and avatar, that one account per person is the rule, and that a blocked ' +
+      "account cannot sign in and its ratings leave the site. Confirm all four, then delete " +
+      'this test.');
+  }
 });
 
 // The one claim a change elsewhere could falsify without touching this page. Sign-in is

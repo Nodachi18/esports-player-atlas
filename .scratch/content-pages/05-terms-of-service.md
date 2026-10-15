@@ -124,17 +124,19 @@ see "Shipping before sign-in" below for how to write them now.
    time" is exactly the sentence [03](03-privacy-statement.md) decision 5 cut: it does not
    change what the reader knows about what happens to them.
 
-7. **`planned` marks the account rules; it does not mark the ones this page omits.** Two
-   different cases, and conflating them is what the first draft of this decision did.
+7. **Nothing on this page is marked `planned`.** Not the account rules — see "Shipping
+   before sign-in" — and not the rules the page omits either.
 
-   Rules 6-9 are *decided and unbuilt*, which is precisely the case
-   [03](03-privacy-statement.md) used the device for. They ship marked.
-
-   The rules this page does not state — a strike rule, ban duration, appeals — are
-   *undecided*. A visible block saying "we have not worked out what gets you blocked" reads
-   as an invitation rather than a disclosure, so there is none. Ship what is true;
+   A strike rule, a ban duration, an appeals process: all *undecided*, and a visible block
+   saying "we have not worked out what gets you blocked" reads as an invitation rather than
+   a disclosure. Ship the rules that exist;
    [../moderation/03](../moderation/03-ban-accounts-and-moderate-ratings.md) reopens this
    page when it lands.
+
+   This is the one place the page parts company with [03](03-privacy-statement.md), which
+   publishes its Discord section marked `planned`. That is right for a *disclosure* — a
+   reader deciding whether to rate wants to know where this is going. It is wrong for a
+   *rule*, which either applies or is not a rule.
 
 ## Shipping before sign-in
 
@@ -143,16 +145,22 @@ sub-task of sign-in, and it means the portal's Terms of Service URL has somethin
 at before Step 0 of [../accounts/01](../accounts/01-discord-oauth-sign-in.md) is run.
 
 Rules 1-5 and 10 are true of the site today, with zero accounts. Rules 6-9 are about a
-sign-in that does not exist yet, so they ship in their own section, **marked `planned`**,
-opening on "There are no accounts yet."
+sign-in that does not exist yet. **Write them in the present tense anyway, unmarked and
+unhedged.** A rule has to be published before the conduct it governs, and that is the whole
+reason this page ships first — a terms page that says "these rules are coming" is not a
+terms page.
 
-**Corrected 2026-10-16, during implementation.** This section originally said to write them
-in the present tense. That was wrong, and decision 7 below is what makes it wrong: the
-`planned` device is right for a thing that is *decided and unbuilt*, and rules 6-9 are
-exactly that. "Rating requires signing in with Discord" is simply false on the live site
-today, and [01](01-help-and-legal-notice.md) already settled how this repo handles that
-case — the Help page says nobody can currently become a professional "rather than
-describing a route that cannot be walked". Same situation, same answer.
+**Settled 2026-10-16 by the operator, after an implementation shipped them marked
+`planned`.** The argument for marking was the Help page's precedent: it says nobody can
+currently become a professional rather than describing a route that cannot be walked. The
+argument against, which wins: **Help describes, terms govern.** Help is answering "how does
+someone become a professional", so "nobody can" is the true answer to the question asked.
+Nobody asks a terms page what the rules are going to be.
+
+**The cost is real and is paid elsewhere.** This page now promises things the code does not
+do, which stops being a promise and starts being a lie the moment the code does something
+different. A comment nobody opens is not a mechanism, so the mechanism is a test — see
+Tests below.
 
 What this page must **not** do is describe the current anonymous arrangement as though it
 were permanent. There is no rule to write about browser tokens: the voter id is an
@@ -198,6 +206,15 @@ page starts talking in formulas.
    OAuth scope string requests `email`. This is the one claim on the page that a one-word
    change in [../accounts/01](../accounts/01-discord-oauth-sign-in.md) could silently
    falsify, and it is the test worth having.
+4. **The tripwire**: fails the moment `auth/discord` or Discord's OAuth endpoint appears
+   anywhere in `src/`. This is what makes publishing rules ahead of the code safe. The
+   failure message names the four claims that have to still be true — the scope asks for no
+   email, only the account id, username and avatar are held, one account per person, a
+   blocked account cannot sign in and its ratings leave the site. Confirm all four, then
+   delete the test; it has done its job.
+
+   It fails on the sign-in branch *by design*. That is the point: it is impossible to ship
+   accounts without someone re-reading this page first.
 
 Do **not** duplicate the `PRO_WEIGHT` test that guards the word "twice" on the Help page.
 Rule 4 here deliberately does not name the number, so there is nothing to pin, and a second
@@ -217,19 +234,33 @@ copy only doubles the maintenance.
 **2026-10-16 — built, and this ticket closes.** `?page=terms` renders, the footer carries a
 fourth real link, and eight tests cover it.
 
-**One deviation from the ticket as written**, recorded above: the account rules ship marked
-`planned` rather than in the present tense. The ticket contradicted itself — decision 7's
-own test for when the device applies ("decided and unbuilt") selects rules 6-9, and writing
-them as current would have put a false sentence on a page whose only value is being true.
+**The account rules were briefly shipped marked `planned` and the operator reversed it the
+same day.** The page states them in the present tense, unmarked: Help describes and so can
+say "nobody can"; terms govern, and a rule that hedges is not a rule. The reasoning is under
+"Shipping before sign-in", and decision 7 is rewritten around it.
+
+**What replaced the marking is a tripwire test** (Tests, 4) that fails as soon as Discord
+auth appears in `src/`, listing the four claims that have to still be true. Publishing rules
+ahead of the code is only safe with something that forces the re-read, and a note in a file
+nobody opens is not that. The `termsPage` doc comment carries the same four, for whoever is
+reading the view rather than the suite.
+
+**Also moved:** the last-updated date out of the paragraph that cross-links the legal notice
+and the privacy statement, into a paragraph of its own at the foot of the page. It is
+metadata about the document, not a pointer to somewhere else.
 
 **What the implementation added that the ticket did not ask for:**
 
-- Two extra tests beyond the three specified. The specified three were the footer link, the
-  register, and the `email` scope. Added: that rule 4 names no number (which is what makes
-  skipping the `PRO_WEIGHT` duplicate safe), that the `planned` marking and its prose are
-  both present, that the last-updated date is there and no change clause crept in, that the
-  repeated rules 2 and 10 are actually repeated, and that the page has not quietly answered
+- Eight tests against the four specified. Added: that rule 4 names no number (which is what
+  makes skipping the `PRO_WEIGHT` duplicate safe), that the account section hedges nowhere
+  and nothing on the page is marked `planned`, that the last-updated date is there and no
+  change clause crept in, that the repeated rules 2 and 10 are actually repeated, and that
+  the page has not quietly answered
   [../accounts/06](../accounts/06-legacy-ratings-after-accounts.md).
+
+  The hedge check is scoped to the account section rather than the page: "ask to be removed
+  and you will be" is a promise to a rated person and belongs in the future tense. Hedging
+  is a defect only where a rule is being stated.
 - A closing note linking the legal notice and the privacy statement. Decision 5 forbade
   *replacing* repeated rules with links; it did not forbid telling a reader where the other
   two pages are, which is one line and is what the privacy page already does.
