@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" role="img" aria-label="Player Atlas">
+  <rect width="100" height="100" rx="22" fill="#050b10"/>
+  <polygon points="50.0,19.1 81.4,41.9 69.4,78.8 30.6,78.8 18.6,41.9"
+           fill="none" stroke="#75c8fa" stroke-width="7.8" stroke-linejoin="round"/>
+</svg>

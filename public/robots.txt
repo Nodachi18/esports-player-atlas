@@ -12,3 +12,48 @@
 
 User-agent: *
 Disallow: /
+
+# ---- Link previews ----
+#
+# The blanket Disallow above also stops the bots that build a link preview when someone
+# pastes a URL into a chat. Most of them read this file, and a blocked fetch means no
+# preview at all — so the Open Graph tags in index.html would be dead markup without the
+# exceptions below.
+#
+# Allowing these is not a hole in the rule above. The tags are site-level: a scraper is
+# served index.html whatever the URL says, routing happens in the browser, and the preview
+# is a fixed title, a fixed sentence and /og.png. No player name, no rating, nothing about
+# a real person reaches a preview. That changes the day the Worker renders per-player tags
+# server-side, and these lines need revisiting then.
+#
+# Search crawlers are not on this list and stay disallowed.
+
+User-agent: Twitterbot
+Allow: /
+
+User-agent: facebookexternalhit
+Allow: /
+
+User-agent: Discordbot
+Allow: /
+
+User-agent: Slackbot-LinkExpanding
+Allow: /
+
+User-agent: Slackbot
+Allow: /
+
+User-agent: LinkedInBot
+Allow: /
+
+User-agent: TelegramBot
+Allow: /
+
+User-agent: WhatsApp
+Allow: /
+
+User-agent: Mastodon
+Allow: /
+
+User-agent: SignalBot
+Allow: /

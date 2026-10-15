@@ -11,6 +11,11 @@
 # crawl so the directive below can actually be read. See
 # .scratch/content-pages/02-legal-notice-private-site.md.
 #
+# Link previews are a separate question from indexing, and robots.txt is what decides
+# them: the unfurl bots listed there are allowed to fetch, and they build a card from the
+# Open Graph tags rather than from these directives. If a card ever stops appearing, check
+# whether the platform started honouring `nosnippet` before rewriting the tags.
+#
 # `noarchive` suppresses cached copies; `nosnippet` suppresses the excerpt. Ratings here
 # are anonymous opinions about named real people, so a stale cached copy outlives any
 # removal request.

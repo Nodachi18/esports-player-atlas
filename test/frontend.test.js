@@ -369,6 +369,49 @@ test('every font face the stylesheet declares is actually in the repo', async ()
   await access(new URL('../public/fonts/OFL.txt', import.meta.url));
 });
 
+// A favicon that 404s is invisible: the browser falls back to a blank page icon and
+// nothing warns you. Same for og:image — the card renders without a picture.
+test('every icon and preview image the page points at is actually in the repo', async () => {
+  const { readFile, access } = await import('node:fs/promises');
+  const html = await readFile(new URL('../public/index.html', import.meta.url), 'utf8');
+
+  const linked = [...html.matchAll(/<link[^>]+href="(\/[^"]+)"/g)].map(m => m[1]);
+  const images = [...html.matchAll(/property="og:image" content="[^"]*?(\/[^/"]+)"/g)].map(m => m[1]);
+  const referenced = [...linked, ...images].filter(href => !href.startsWith('/app/'));
+
+  assert.ok(referenced.includes('/favicon.ico'), 'index.html links a favicon');
+  assert.ok(referenced.includes('/og.png'), 'index.html points og:image at an image');
+
+  for (const href of referenced) {
+    await access(new URL(`../public${href}`, import.meta.url));
+  }
+
+  // The manifest names its own icons, and nothing else checks those.
+  const manifest = JSON.parse(await readFile(new URL('../public/site.webmanifest', import.meta.url), 'utf8'));
+  assert.ok(manifest.icons.length, 'the manifest declares at least one icon');
+  for (const icon of manifest.icons) {
+    await access(new URL(`../public${icon.src}`, import.meta.url));
+  }
+});
+
+// Facebook, Slack and the rest size the card from these before they have the file, and a
+// wrong number crops the image. They are the one part of the markup that silently drifts
+// when og.png is regenerated at another size.
+test('the declared og:image dimensions match the file on disk', async () => {
+  const { readFile } = await import('node:fs/promises');
+  const html = await readFile(new URL('../public/index.html', import.meta.url), 'utf8');
+  const declared = key => Number(html.match(new RegExp(`property="og:image:${key}" content="(\\d+)"`))[1]);
+
+  // A PNG header is fixed-width: the IHDR width and height are two big-endian 32-bit
+  // integers at byte 16, so this needs no image library.
+  const png = await readFile(new URL('../public/og.png', import.meta.url));
+  assert.equal(png.readUInt32BE(16), declared('width'));
+  assert.equal(png.readUInt32BE(20), declared('height'));
+
+  // Under 600x315 and most platforms drop to a small thumbnail instead of a wide card.
+  assert.ok(png.readUInt32BE(16) >= 600 && png.readUInt32BE(20) >= 315);
+});
+
 // ---- help ----
 
 // Prose wraps across source lines, so match against collapsed whitespace rather than

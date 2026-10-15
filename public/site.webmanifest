@@ -1,0 +1,14 @@
+{
+  "name": "Esports Player Atlas",
+  "short_name": "Player Atlas",
+  "description": "Community and professional ratings for competitive players.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#050b10",
+  "theme_color": "#050b10",
+  "icons": [
+    { "src": "/icon-192.png", "type": "image/png", "sizes": "192x192" },
+    { "src": "/icon-512.png", "type": "image/png", "sizes": "512x512" },
+    { "src": "/icon.svg", "type": "image/svg+xml", "sizes": "any" }
+  ]
+}

@@ -8,6 +8,34 @@
 <!-- Belt and braces with the X-Robots-Tag header in public/_headers: a crawler that reads
      the markup but not the headers still sees it. -->
 <meta name="robots" content="noindex, nofollow, noarchive, nosnippet">
+<!-- The mark is the header's pentagon: five vertices for the five Categories. icon.svg
+     covers anything modern, favicon.ico the browsers that ask for it by name anyway, and
+     apple-touch-icon the iOS home screen, which ignores both. Regenerate all of them with
+     `python3 tools/make-brand-assets.py` rather than editing a PNG by hand. -->
+<link rel="icon" href="/favicon.ico" sizes="32x32">
+<link rel="icon" href="/icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="/apple-touch-icon.png">
+<link rel="manifest" href="/site.webmanifest">
+<meta name="theme-color" content="#050b10">
+
+<!-- Link previews. These describe the site, not the page: routing is client-side, so a
+     scraper fetching /?page=player&id=3 is served this same file and never runs the
+     script that would fill in that player. A per-player preview needs the Worker to
+     render the tags server-side, which it does not do yet.
+
+     Crawling has to be allowed for any of this to appear — see public/robots.txt. -->
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="Esports Player Atlas">
+<meta property="og:url" content="https://www.esports-player-atlas.workers.dev/">
+<meta property="og:title" content="Esports Player Atlas">
+<meta property="og:description" content="Community and professional ratings for competitive players, across strategy, tactics, micro, macro and decisions.">
+<meta property="og:image" content="https://www.esports-player-atlas.workers.dev/og.png">
+<meta property="og:image:type" content="image/png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="Player Atlas: a five-point radar chart over the five rating categories.">
+<meta name="twitter:card" content="summary_large_image">
+
 <!-- Served from this site, not from Google: a font request to a third party hands them the
      visitor's IP before anything has been clicked. Nothing here contacts another origin. -->
 <link rel="stylesheet" href="/app/fonts.css">
