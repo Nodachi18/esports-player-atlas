@@ -30,6 +30,8 @@ A lightweight full-stack esports player rating and scouting prototype. It collec
 |---|---|
 | `public/index.html` | Shell, served by Workers Assets (does not invoke the Worker) |
 | `public/app/` | Frontend ES modules; the pure ones are unit-tested |
+| `public/icon.svg`, `favicon.ico`, `og.png` … | Favicons, the web manifest and the link-preview image, all generated |
+| `tools/make-brand-assets.py` | Regenerates those; run it when the mark or the preview wording changes |
 | `src/worker.js` | API routes (`/api/*`), WebCrypto tokens, D1 queries |
 | `src/stats.js` | Pure aggregation and outlier logic (unit-tested) |
 | `migrations/` | D1 schema migrations |
@@ -160,6 +162,17 @@ Two conventions worth knowing before editing:
   colours the data and says which panel you are reading. They are never the same job.
 - **`planned` means not built yet**, and nothing else. An item a role may not use is absent
   from the DOM rather than dimmed.
+- **The brandmark is one pentagon, drawn three ways.** The header builds it from
+  `polygonPoints()` in `scores.js`, and the favicons and `og.png` are generated from the
+  same geometry by `tools/make-brand-assets.py` (Pillow, fonttools and brotli; neither a
+  runtime nor a build dependency). Edit the script and re-run it rather than touching an
+  image, and commit what it writes.
+
+The Open Graph tags in `index.html` describe the site rather than the page: routing is
+client-side, so a scraper is served the same shell whatever the URL says. Per-player
+previews need the Worker to render the tags, which it does not do. Previews also depend on
+`public/robots.txt`, which disallows everything except a named list of unfurl bots — search
+engines stay out, chat link cards work.
 
 A manual smoke test: the page loads with a ranked strip and a radar, and the console is
 clean. Rating a player confirms, and a second attempt reports that you have already rated
