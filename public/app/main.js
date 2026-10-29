@@ -13,8 +13,15 @@ const ACCOUNTS_ENABLED = false;
 
 let state = stateFromSearch(location.search);
 
+// Who the visitor is, as four independent facts. `account` and `role` are the Discord
+// session and arrive from /api/auth/me; `adminKey` is a bearer token in sessionStorage and
+// is not a role, so an admin is otherwise anonymous. They live here rather than in the DOM
+// because render() replaces root.innerHTML wholesale — anything kept in the markup is
+// destroyed by the next keystroke in the search box.
 const session = {
-  role: null,
+  role: null,          // 'community' or 'professional', from the account row
+  account: null,       // { username, global_name, role }, or null when signed out
+  resolved: false,     // whether /api/auth/me has answered — see the bounce in render()
   adminKey: Boolean(sessionStorage.adminAtlas),
   accountsEnabled: ACCOUNTS_ENABLED,
   adminError: '',
@@ -30,6 +37,12 @@ const data = {
   games: [],
   rateResult: null,
   error: '',
+
+  // What the OAuth return leg said, read off `?auth=` once at startup and never written
+  // back. It is deliberately not part of `state`: searchFromState() does not know the key,
+  // so the replaceState at the end of the first render takes it off the address bar, and a
+  // reload cannot re-show a line about a sign-in attempt that is over.
+  authNotice: new URLSearchParams(location.search).get('auth') || '',
 
   // The admin form's draft, and the delete guard.
   //
@@ -79,14 +92,23 @@ function adminContext() {
 
 function render() {
   const items = navigation(session);
-  if (!isReachable(state.page, session)) state = update(state, { page: 'players' });
+
+  // A stale or typed URL pointing somewhere this session cannot go is sent to Players —
+  // but the session arrives one round trip after the first paint, so "cannot go" is not
+  // knowable yet for a page that needs an account. Bouncing on the first render would
+  // take a signed-in visitor returning to ?page=account and drop them on Players, losing
+  // the landing the return leg was carrying. So a page that signing in would make
+  // reachable waits for the answer; `admin`, which is decided by sessionStorage and known
+  // synchronously, still bounces at once.
+  const pending = !session.resolved && isReachable(state.page, { ...session, role: 'community' });
+  if (!pending && !isReachable(state.page, session)) state = update(state, { page: 'players' });
 
   const { filtered, selected } = currentPlayers();
 
   const body =
       state.page === 'players'     ? views.playersPage(filtered, selected, state)
     : state.page === 'leaderboard' ? views.leaderboardPage(data.board, state)
-    : state.page === 'rate'        ? views.ratePage(selected, data.rateResult)
+    : state.page === 'rate'        ? views.ratePage(selected, data.rateResult, session)
     : state.page === 'admin'       ? views.adminPage(adminContext())
     : state.page === 'legal'       ? views.legalPage()
     : state.page === 'privacy'     ? views.privacyPage(state)
@@ -106,6 +128,7 @@ function render() {
     ${views.header(items, state.page, state, session)}
     <main class="wrap">
       ${data.error ? `<p class="result bad">${views.esc(data.error)}</p>` : ''}
+      ${state.page === 'rate' ? views.authNotice(data.authNotice) : ''}
       ${body}
     </main>
     ${views.footer(state, session)}`;
@@ -171,6 +194,9 @@ function go(change) {
   // Switching player discards the draft silently. Clicking through the roster is the
   // common case, and a confirm dialog on every row would cost more than it saves.
   if ('player' in change && change.player !== state.player) data.playerForm = null;
+  // The sign-in notice describes the trip that just ended. Leaving the page it landed on
+  // ends it too, and it must not reappear later as if a second attempt had failed.
+  if ('page' in change && change.page !== state.page) data.authNotice = '';
   state = update(state, change);
   render();
 }
@@ -201,6 +227,45 @@ async function loadBoard() {
     data.error = error.message;
   }
   render();
+}
+
+/**
+ * The probe every page load makes to decide which shell to draw. It answers 200 in both
+ * states, so there is no error branch for "not signed in" — that is `account: null`, and
+ * the catch below is for a Worker that is not reachable at all. Drawing the signed-out
+ * shell is the only honest answer to not knowing; the next load asks again.
+ */
+async function loadSession() {
+  try {
+    const { account } = await api.getSession();
+    session.account = account || null;
+    session.role = account ? account.role : null;
+  } catch {
+    session.account = null;
+    session.role = null;
+  }
+  // Signed out is an answer, and so is a Worker that did not reply: both mean the shell
+  // can stop waiting. What it must not do is keep deferring the bounce forever.
+  session.resolved = true;
+  render();
+}
+
+/**
+ * The cookie is HttpOnly, so this cannot be done here: only the server that set it can
+ * unset it, which is why a route exists for something that stores nothing. If the call
+ * does not land the cookie is still there, so the session is re-read rather than assumed
+ * away — showing a signed-out header over a live session is the one wrong answer.
+ */
+async function signOut() {
+  try {
+    await api.logout();
+  } catch {
+    return loadSession();
+  }
+  session.account = null;
+  session.role = null;
+  data.rateResult = null;
+  render();   // render() bounces a page this session can no longer reach
 }
 
 async function loadAdmin() {
@@ -235,6 +300,13 @@ root.addEventListener('click', event => {
   if (strip) return go({ strip: state.strip + (strip.dataset.strip === 'next' ? 1 : -1) });
 
   if (event.target.closest('[data-admin-out]')) return signOutAdmin();
+
+  if (event.target.closest('[data-signout]')) return signOut();
+
+  // There is no [data-signin] branch, and there must not be. Sign-in is a plain anchor to
+  // /api/auth/discord/start: the authorize step is a top-level redirect to discord.com and
+  // a fetch cannot navigate the window. It falls through the [data-page]/[data-slug] test
+  // below and the browser follows it, which is the whole mechanism.
 
   // "New player" has one job: clear the Selection. The mode follows from that. The draft
   // is dropped explicitly rather than left to go(), which only notices a change of
@@ -354,13 +426,19 @@ root.addEventListener('submit', async event => {
 async function submitRating() {
   const { selected } = currentPlayers();
   if (!selected) return;
+  // The form is rendered disabled in this state and the server answers 401 regardless;
+  // this is the middle lock, so a submit that gets past the attribute does not spend a
+  // round trip to be told what the page already knows.
+  if (session.accountsEnabled && !session.account) return;
 
   const panel = document.getElementById('ratepanel').value;
   const body = { player: selected.slug, panel };
   for (const category of ['strategy', 'tactics', 'micro', 'macro', 'decisions']) {
     body[category] = Number(document.getElementById(`r-${category}`).value);
   }
-  if (panel === 'community') body.voter = api.voterId();
+  // No voter field. A community rating is the session cookie's, which travels on its own;
+  // the browser-minted id this used to send is gone, in api.js and here, because a rating
+  // anyone can reset in two clicks is an identity only in name.
   if (panel === 'professional') body.token = localStorage.proAtlas || '';
 
   try {
@@ -469,7 +547,7 @@ const rateMessage = (error, panel) => ({
   409: 'You have already rated this player on this panel.',
   401: panel === 'professional'
     ? 'Rating as a professional needs professional access.'
-    : 'That rating was not accepted.',
+    : 'Rating needs you to be signed in with Discord.',
   404: 'That player no longer exists.',
   400: `That rating was rejected: ${error.message}`,
 }[error.status] || error.message);
@@ -477,6 +555,7 @@ const rateMessage = (error, panel) => ({
 // ---- start ----
 
 render();
+loadSession();
 loadRanking().then(() => {
   if (state.page === 'leaderboard') loadBoard();
   if (state.page === 'admin') loadAdmin();

@@ -49,12 +49,64 @@ export function header(items, activePage, state, session) {
     </header>`;
 }
 
+/**
+ * The sign-in control is an anchor, and it has to be: the authorize step is a top-level
+ * redirect to discord.com, and an XHR cannot navigate the window. A button wired to a
+ * fetch would hit the 302 and follow it inside the request, never reaching the user.
+ *
+ * It says Discord rather than "Sign in", because a control that jumps to another company's
+ * domain without naming it first is the shape a phish has. There is no Register beside it:
+ * the first sign-in is the registration, and a second control starting the identical
+ * redirect would be two names for one thing.
+ */
+export const DISCORD_START = '/api/auth/discord/start';
+
+export const signInLink = (label, extraClass = '') =>
+  `<a class="discord${extraClass ? ` ${extraClass}` : ''}" href="${DISCORD_START}">${esc(label)}</a>`;
+
+/**
+ * Signed in, the header shows a name and a way out. It deliberately shows no avatar: the
+ * hash is stored and rendering it means an <img> pointing at cdn.discordapp.com, which is
+ * a load from another origin that the privacy page says nothing here performs.
+ *
+ * global_name is Discord's display name and username is the handle. The display name is
+ * what the person chose to be called, so it is preferred, with the handle behind it for
+ * the accounts that have none.
+ */
 function authControl(session) {
   if (!session.accountsEnabled) {
     return `<span class="planned signin"${inert}>Sign in with Discord${plannedTag}</span>`;
   }
-  return `<button class="discord" type="button" data-signin>Sign in with Discord</button>`;
+  const account = session.account;
+  if (!account) return signInLink('Sign in with Discord', 'signin');
+  // Not the footer's `.pill`, which carries an admin-coloured dot. An account is not an
+  // admin key and the chrome may not suggest it is.
+  return `<span class="signin">
+      <span>${esc(account.global_name || account.username)}</span>
+      <button class="mini" type="button" data-signout>Log out</button>
+    </span>`;
 }
+
+/**
+ * The two lines the OAuth return leg can carry back, read out of `?auth=` once and then
+ * dropped — see main.js, where it never enters the state object, so the URL rewrite at the
+ * end of render() takes it off the address bar and a reload does not re-show it.
+ *
+ * `busy` is its own line rather than a second spelling of `failed` because it is a
+ * different situation with a different remedy: the limiter in front of the token exchange
+ * counts successful sign-ins too, so a whole office behind one address can trip it while
+ * doing nothing wrong. "Wait a minute" is something they can act on; "sign-in failed" is
+ * not, and would send them to retry immediately, which is the one thing that keeps it shut.
+ */
+export const AUTH_NOTICES = Object.freeze({
+  failed: 'Sign-in did not complete. Try again.',
+  busy: 'Too many sign-ins from your network in the last minute. Try again shortly.',
+});
+
+// hasOwn, not a truthiness test: the key comes off the query string, so `?auth=constructor`
+// would otherwise find Object.prototype and render a function body as a notice.
+export const authNotice = kind =>
+  (Object.hasOwn(AUTH_NOTICES, kind) ? `<p class="result bad" role="status">${esc(AUTH_NOTICES[kind])}</p>` : '');
 
 export function footer(state, session) {
   const links = FOOTER_LINKS.map(link => `
@@ -250,31 +302,52 @@ export function leaderboardPage(rows, state) {
 
 // ---- rate ----
 
-export function ratePage(player, result) {
+/**
+ * Signed out with accounts on, the form is rendered disabled behind a sign-in panel rather
+ * than replaced by one. What is being asked for is five sliders and a panel choice, and a
+ * visitor cannot weigh signing in against that without seeing it. Replacing the form with
+ * "sign in to rate" asks them to agree to something they have not been shown.
+ *
+ * The disabled attributes are a courtesy, not the gate. /api/ratings answers 401 without a
+ * session whatever the DOM says, which is the only reason it is safe to render the form at
+ * all — a disabled input is a suggestion to anyone with a console open.
+ */
+export function ratePage(player, result, session = {}) {
   if (!player) {
     return `<div class="block"><b>No player selected</b><span>Pick someone on Players first — there is nothing to rate.</span></div>`;
   }
 
+  const locked = Boolean(session.accountsEnabled) && !session.account;
+  const off = locked ? ' disabled' : '';
+
   const sliders = CATEGORIES.map(category => `
     <div class="slider">
       <label for="r-${category}">${category}<output id="out-${category}" for="r-${category}">75</output></label>
-      <input type="range" min="0" max="100" value="75" id="r-${category}" data-slider="${category}">
+      <input type="range" min="0" max="100" value="75" id="r-${category}" data-slider="${category}"${off}>
     </div>`).join('');
+
+  const gate = locked ? `
+      <div class="block">
+        <b>Sign in with Discord to rate</b>
+        <span>A rating is attached to your account, so the form below is shown but inert until you sign in.</span>
+        ${signInLink('Sign in with Discord')}
+      </div>` : '';
 
   return `
     <section class="rate" aria-label="Submit a rating">
       <h1>Rate ${esc(player.name)}</h1>
       <p class="real">${esc([player.real_name, player.game].filter(Boolean).join(' · '))}</p>
-      <form data-rate-form>
+      ${gate}
+      <form data-rate-form${locked ? ' aria-disabled="true"' : ''}>
         <div class="controls">
           <label for="ratepanel">Panel</label>
-          <select class="sel" id="ratepanel">
+          <select class="sel" id="ratepanel"${off}>
             <option value="community">Community</option>
             <option value="professional">Professional</option>
           </select>
         </div>
         ${sliders}
-        <button class="btn" type="submit">Submit rating</button>
+        <button class="btn" type="submit"${off}>Submit rating</button>
       </form>
       ${result ? `<p class="result ${result.tone}">${esc(result.text)}</p>` : ''}
     </section>`;
