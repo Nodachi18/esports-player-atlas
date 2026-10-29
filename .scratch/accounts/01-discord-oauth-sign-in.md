@@ -99,7 +99,9 @@ on return, and signs out again; an Account row exists keyed on the snowflake;
 
 ## Tickets
 
-Broken down on 2026-10-29. They live in
+Broken down on 2026-10-29, and split from seven to eight when 07's tail — the flag flip and
+the deployed hand-check — was pulled out so the page rewrites could run beside 04. They live
+in
 [`01-discord-oauth-sign-in/`](01-discord-oauth-sign-in/) and land as **one branch, one PR**:
 `ACCOUNTS_ENABLED` stays `false` until the last one, so every intermediate state is invisible
 to a visitor — but the flush in 02 is not invisible, it deletes live rows on deploy, and it
@@ -113,7 +115,8 @@ belongs in the same deploy as the thing that justifies it.
 | 04 | [The three auth routes](01-discord-oauth-sign-in/04-the-three-auth-routes.md) | ready-for-agent | 01, 03 |
 | 05 | [Session-gated rating, and /api/auth/me](01-discord-oauth-sign-in/05-session-gated-rating.md) | ready-for-agent | 02, 04 |
 | 06 | [The signed-in shell](01-discord-oauth-sign-in/06-the-signed-in-shell.md) | ready-for-agent | 05 |
-| 07 | [Make the published promises true, and turn accounts on](01-discord-oauth-sign-in/07-make-the-published-promises-true.md) | ready-for-agent | 06 |
+| 07 | [Make the published promises true](01-discord-oauth-sign-in/07-make-the-published-promises-true.md) | ready-for-agent | — |
+| 08 | [Turn accounts on](01-discord-oauth-sign-in/08-turn-accounts-on.md) | ready-for-agent | 06, 07 |
 
 [02-token-kind-discriminator.md](02-token-kind-discriminator.md) merges first and separately.
 

@@ -1,8 +1,8 @@
-# Make the published promises true, and turn accounts on
+# Make the published promises true
 
 Status: ready-for-agent
 Part of: [../01-discord-oauth-sign-in.md](../01-discord-oauth-sign-in.md)
-Blocked by: 06
+Blocked by: —
 
 ## Problem
 
@@ -58,15 +58,20 @@ terms page now overstates, say so here rather than deleting the sentence quietly
 `src/` for the word `email`, and it is the one check standing between a one-word change and
 a lie on a published page.
 
-## Then
+## Not in this ticket
 
-Flip `ACCOUNTS_ENABLED` to `true` in `public/app/main.js`. That is what turns on the
-navigation matrix: Rate starts prompting, Account appears as `planned`.
+Flipping `ACCOUNTS_ENABLED` and the deployed hand-check moved to
+[08](08-turn-accounts-on.md) on 2026-10-29, so this one can run in parallel with
+[04](04-the-three-auth-routes.md) — it touches `public/app/views.js` and
+`test/frontend.test.js`, which nothing else in flight does.
+
+**This ticket is unblocked, not early.** It is written against what the set builds, which is
+decided; it is the ticket that re-reads the terms page, so the tripwire is its to delete.
+Expect [04](04-the-three-auth-routes.md) to turn those two tests red before you get to
+them — that is the tripwire firing exactly as designed, not a defect, and resolving it is
+what you are here for.
 
 ## Done when
 
-No page says something the code contradicts, the tripwire test is gone and the email-scope
-guard remains, `npm test` is green, `ACCOUNTS_ENABLED` is `true` — and, after the merge
-deploys, a visitor signs in with Discord **on the deployed origin**, is recognised on
-return, rates a player, and signs out again, with an `accounts` row keyed on the snowflake
-and a `ratings` row carrying its `account_id`.
+No page says something the code contradicts, the tripwire test is gone, the email-scope
+guard remains, and `npm test` is green.
