@@ -52,8 +52,46 @@ worst possible moment.
 The two values differ by environment: `http://localhost:8787/...` locally, the `www.` host
 deployed.
 
+## Check the credentials before opening a browser
+
+Found on 2026-10-30, after a wrong secret cost a full round trip through a consent screen to
+diagnose. **The id/secret pair can be validated against Discord with no user, no consent
+screen and no browser**, using the client-credentials grant, which an application's owner may
+always request for itself:
+
+```bash
+set -a && . ./.dev.vars && set +a
+curl -s -o /dev/null -w '%{http_code}\n' -X POST https://discord.com/api/oauth2/token \
+  -H 'content-type: application/x-www-form-urlencoded' \
+  -u "$DISCORD_CLIENT_ID:$DISCORD_CLIENT_SECRET" \
+  -d 'grant_type=client_credentials&scope=identify'
+```
+
+`200` means the pair is good. `401 {"error":"invalid_client"}` means it is not, and says so in
+a second rather than as a generic sign-in failure five minutes later.
+
+**A shape check catches the specific mistake even faster.** The two values that get confused
+sit on different pages and look nothing alike once you know:
+
+| | Length | Characters | Where |
+|---|---|---|---|
+| Client secret | **32** | mixed case | OAuth2 |
+| Public key | **64** | lowercase hex | General Information |
+
+A 64-character lowercase-hex value in `DISCORD_CLIENT_SECRET` is the ed25519 public key for
+interaction webhooks, which this project does not use. That is the paste that actually
+happened. The failure it produces is `401 invalid_client` on the token exchange, which the
+callback turns into the same `auth=failed` redirect as every other failure — indistinguishable
+from a cancelled sign-in without the probe above.
+
+The secret is shown once, so recovering from this means **Reset Secret**, not finding the old
+one.
+
 ## Watch out
 
+- **`wrangler dev` reads `.dev.vars` once, at startup.** A corrected secret stays broken until
+  the dev server is restarted, which makes a fixed value look unfixed and sends you looking in
+  the wrong place. Restart after any edit.
 - `.dev.vars` must be gitignored. Check before writing anything into it.
 - The client secret is shown once. Regenerating it is free, but it invalidates the old one.
 - Putting the deployed secrets in place does not break anything today — no code reads them

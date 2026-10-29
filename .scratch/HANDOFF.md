@@ -1,4 +1,4 @@
-# Handoff — 2026-10-13
+# Handoff — 2026-10-30
 
 ## Where things stand
 
@@ -12,16 +12,22 @@ account even for its free tier.
 |---|---|
 | Live | `www.esports-player-atlas.workers.dev`, Worker `www`, account `877776dfd5a7c2cc7304cb6456115313` |
 | Database | D1 `a5d65c76-5b23-49d1-bf45-49383957a680`, migrations `0001`–`0006` applied |
-| Data | 38 players, 3 ratings on 3 of them, no accounts, rating open to anyone |
+| Data | 38 players, 5 ratings on 5 of them, no accounts, rating open to anyone |
 | `main` | deploys itself — every push runs the tests, then migrations, then `wrangler deploy` |
+| Unmerged | **`discord-sign-in`** — the whole accounts set, built and green, not deployed |
 
-Ratings have started arriving from whoever has found the site, but only just: **3
-community ratings, 0 professional, spread over 3 players** — `boxer`, `jaehoon` and
-`free`, one each, re-checked against the live API on 2026-10-13. They are unattributable
-by construction — a voter id is a browser token that resets in two clicks. Three rows is
-small enough that [accounts/06](accounts/06-legacy-ratings-after-accounts.md), which
-decides what becomes of them once accounts exist, can probably be answered with "discard"
-and closed. Check the count again before assuming that still holds.
+**Read that last row before anything else.** Everything below about live behaviour describes
+`main`. The branch changes most of it, and the two are deliberately out of step until one
+merge: rating becomes session-gated, the pre-account ratings are deleted by a migration, and
+four published pages are rewritten. Nothing on the live site has moved yet.
+
+Ratings keep arriving from whoever has found the site, at about one a week: **5 community
+ratings, 0 professional, one each on `barracks`, `boxer`, `jaehoon`, `light` and `free`**,
+re-counted against the live API on 2026-10-29. They are unattributable by construction — a
+voter id is a browser token that resets in two clicks.
+[accounts/06](accounts/06-legacy-ratings-after-accounts.md) is **closed: discard**, and
+`migrations/0007` on the branch deletes them along with their `player_stats`. **Count again
+before merging** — the decision is about a number and the number keeps moving.
 
 Plans worth reading before touching anything: [deployment/spec.md](deployment/spec.md) and
 [navigation-overhaul/spec.md](navigation-overhaul/spec.md). **Both record what was decided
@@ -35,32 +41,61 @@ built rather than what was decided once. **It was built and merged on 2026-10-12
 so it is no longer an exception: its spec, map and issues are now history like everything
 else here. Read
 [admin-player-crud/spec.md](admin-player-crud/spec.md) for the argument behind a shape in
-the code, not as a description of the code. **Nothing in `.scratch/` now describes work
-waiting to be built.**
+the code, not as a description of the code.
+
+**One directory is the exception again**, for the first time since then:
+[accounts/01-discord-oauth-sign-in/](accounts/01-discord-oauth-sign-in/) describes work that
+is built but **not merged**, and its parent
+[accounts/01](accounts/01-discord-oauth-sign-in.md) carries the decisions behind it — why
+rating is gated rather than prompted, why the legacy ratings go, why the avatar is stored
+and never rendered, and why the rate limiter sits where it does. Read it as current until
+`discord-sign-in` lands; after that it is history like the rest.
 
 ## Do this first
 
-**[accounts/01](accounts/01-discord-oauth-sign-in.md) — Discord sign-in.** The single
-change that makes this product defensible. Until ratings are attributable, the published
-medians are decoration. Blocked by
-[accounts/02](accounts/02-token-kind-discriminator.md), which must come first: the OAuth
-`state` value is what creates the token-confusion risk, and adding the discriminator is a
-flag-day change for live 30-day pro tokens. Step 0 of sign-in is human-only — registering
-the Discord redirect URIs and storing the secrets. **It also has a published promise
-attached**: the privacy page carries a `planned` section stating what signing in with
-Discord will mean and that none of it happens yet. Rewriting that is part of shipping this,
-before it goes live rather than after.
+**Merge [`discord-sign-in`](accounts/01-discord-oauth-sign-in.md), then walk the deployed
+site.** The eight tickets under
+[accounts/01-discord-oauth-sign-in/](accounts/01-discord-oauth-sign-in/) are built, committed
+and green — 155 tests, up from 110. Sign-in was walked end to end **locally** on 2026-10-30
+against the real Discord application: a real account, landing back on the page the signed
+state carried, one `accounts` row, two ratings carrying its `account_id`.
 
-**Five more tickets are queued behind it** and cannot start until it lands:
+What is left is [08](accounts/01-discord-oauth-sign-in/08-turn-accounts-on.md): the same walk
+on the deployed origin. It is not ceremony. The deployed `DISCORD_REDIRECT_URI` is a
+write-only Worker secret, so **no check in this repository can read it back** — a value
+stored with the localhost URI, or without the `www.` prefix, passes everything up to the
+first real sign-in on the live site and then fails as `invalid_redirect_uri`.
+
+**The merge deletes live data.** `migrations/0007` flushes `ratings` and `player_stats`, and
+migrations apply before `wrangler deploy`. That was decided against 3 rows on 2026-10-13 and
+re-counted at 5 on 2026-10-29. **Count again before merging** — the site is public and the
+argument is about a number.
+
+**Five tickets unblock the moment it lands:**
 [accounts/04](accounts/04-promote-account-to-professional.md) promotion →
 [05](accounts/05-retire-pro-invite-surface.md) retiring the invite surface,
 [07](accounts/07-admin-accounts-replace-the-key.md) replacing the shared admin key with a
 role, [moderation/02](moderation/02-session-revocation.md) revocable sessions, and
-[03](moderation/03-ban-accounts-and-moderate-ratings.md) banning. That is the real
-argument for its position here: nothing else on this list unblocks anything.
+[03](moderation/03-ban-accounts-and-moderate-ratings.md) banning.
 
-The redirect URI used to be a ticket of its own; there is no integration in the codebase
-for a wrong URI to break, so it is provisioning for sign-in rather than a defect.
+**Two things the set shipped knowingly incomplete**, both written down where they will be
+found rather than left to be discovered:
+
+- **The terms page overstates on blocking.** Rules 8 and 9 say a blocked account cannot sign
+  in and its ratings leave the published scores. Nothing can block an account;
+  [moderation/03](moderation/03-ban-accounts-and-moderate-ratings.md) owns it, and rule 9
+  constrains it to *exclusion from the aggregates*, not deletion. The rule was published
+  ahead of its code on purpose. A successor tripwire in `test/frontend.test.js` fires when
+  blocking lands — but it greps for **column names**, so moderation/03 can slip past it by
+  choosing different ones.
+- **A 30-day session with no revocation.** "Cannot sign in" is therefore true only at the
+  next sign-in. [moderation/02](moderation/02-session-revocation.md) closes it; a
+  blocked-account check on the write routes closes it sooner, without touching the cookie.
+
+[accounts/02](accounts/02-token-kind-discriminator.md) — the `kind` discriminator — is
+**still not implemented**. Sign-in checks `kind` at its own call sites instead, which is why
+it could ship first. Its job remains: move the check inside `verifyToken` so a new call site
+cannot forget. Decided while breaking down 01: hard break, no grandfathering.
 
 ## Then, by value
 
@@ -225,6 +260,23 @@ stale),
   keys on `changes === 0`, cannot misfire on a no-op save. Three identical `PUT`s inside
   one second all return `200`. Worth knowing before anyone uses `changes` to detect "did
   anything actually change", because it does not answer that question.
+- **A Discord client secret is 32 mixed-case characters; the public key is 64 lowercase hex.**
+  They sit on different pages of the developer portal and one is very easy to paste where the
+  other belongs. The wrong one produces `401 invalid_client` on the token exchange, which the
+  callback turns into the same `auth=failed` redirect as a cancelled sign-in — so it looks
+  like the user declined. Cost a browser round trip to diagnose on 2026-10-30. **A shape check
+  is instant, and the pair can be validated outright with no browser and no consent screen**
+  via the client-credentials grant; both are written up in
+  [accounts/01-discord-oauth-sign-in/01](accounts/01-discord-oauth-sign-in/01-provision-the-discord-application.md).
+  The secret is shown once, so the recovery is Reset Secret, not a hunt for the old one.
+- **`wrangler dev` reads `.dev.vars` once, at startup.** Correcting a secret while it runs
+  changes nothing, so a fixed value goes on failing and sends you looking somewhere else.
+  Restart after any edit.
+- **`wrangler dev` also serves a local explorer** at `/cdn-cgi/local/explorer` on the dev
+  port — a UI over local D1, KV and traces. The D1 file itself is plain SQLite under
+  `.wrangler/state/v3/d1/miniflare-D1DatabaseObject/<hash>.sqlite` and opens in any client,
+  but the name is derived from the binding, so do not hard-code it, and treat it read-only
+  while the dev server holds it.
 - **CI deploys show as *deployed by unknown*** in the Cloudflare dashboard. An API token has
   no user session behind it; that is expected, not a misconfiguration.
 - **`seed/demo.sql` must never touch production.** It holds `PRO-DEMO-2026`, published in
@@ -265,8 +317,10 @@ stale),
 
 ## Waiting on a human
 
-- The Discord application: redirect URIs and secrets, step 0 of
-  [accounts/01](accounts/01-discord-oauth-sign-in.md).
+- ~~The Discord application: redirect URIs and secrets.~~ **Done 2026-10-29.** What replaces
+  it: merging `discord-sign-in` and walking sign-in on the deployed origin —
+  [08](accounts/01-discord-oauth-sign-in/08-turn-accounts-on.md). A consent screen needs a
+  human, and the deployed redirect URI cannot be read back by anything.
 - Branch protection on `main` requiring the `test` check. CI reports a red check on a
   failing pull request but cannot block the merge without it. **Owner-only**: this is a
   personal repository, which has exactly two permission levels, so no collaborator

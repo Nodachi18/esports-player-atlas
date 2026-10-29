@@ -35,12 +35,28 @@ After the merge deploys, on `https://www.esports-player-atlas.workers.dev`:
 Steps 1-5 need a human with a Discord account and a browser. Step 6 is
 `wrangler d1 execute DB --remote`.
 
+## Before merging
+
+1. **Probe the credentials** with the client-credentials grant in
+   [01](01-provision-the-discord-application.md). It validates whatever pair you hold locally.
+   It cannot reach the deployed values — a Worker secret is write-only, so nothing can read
+   them back — but if the same value went in with `wrangler secret put`, a local `200` is the
+   best evidence available short of signing in on the live site.
+2. **Re-count the live ratings.** The flush is irreversible on deploy.
+3. Confirm `npm test` is green and `ACCOUNTS_ENABLED` is `true`.
+
 ## Watch out
 
 **The flush in [02](02-accounts-schema-and-the-flush.md) runs when this deploys**, because
 migrations apply before `wrangler deploy`. Count the live ratings one more time before the
 merge — it was 3 on 2026-10-13 and 5 on 2026-10-29 — and stop if the number has grown into
 something nobody would choose to discard.
+
+**The local walk passed on 2026-10-30** — signed in as a real Discord account, landed back on
+the page the state carried, one `accounts` row, two ratings carrying its `account_id`, both
+with the same account-derived `voter_hash` on different players. So the flow itself is proven;
+what the deployed walk still tests is the deployed *configuration*, which is a different
+thing and the only thing no check here can reach.
 
 ## Done when
 
