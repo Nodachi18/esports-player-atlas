@@ -541,8 +541,8 @@ export const legalPage = () => `
 
     <h2>About the ratings</h2>
     <p>
-      Every rating on this site is an opinion submitted by an anonymous visitor about a
-      named real person. Ratings are not checked, not verified, and not statements of fact.
+      Every rating on this site is an opinion submitted by a visitor about a named real
+      person. Ratings are not checked, not verified, and not statements of fact.
       The combined score weights the professional panel above the community panel — a
       product choice, not a measurement of anybody.
     </p>
@@ -558,6 +558,14 @@ export const legalPage = () => `
  * nothing else on the page is remote. nofollow, like the contact card.
  */
 export const CLOUDFLARE_PRIVACY = 'https://www.cloudflare.com/privacypolicy/';
+
+/**
+ * The second one, and for the same reason: signing in is a round trip through Discord, so
+ * a visitor who signs in reaches discord.com and Discord sees them. Nothing is loaded from
+ * there — this is a link a reader follows, not a resource the page fetches — and the avatar
+ * is deliberately never rendered, which is what keeps that true.
+ */
+export const DISCORD_PRIVACY = 'https://discord.com/privacy';
 
 // ---- help ----
 
@@ -577,9 +585,9 @@ export const helpPage = state => `
     <div class="qa">
       <h2>Why are there two panels, and why does Combined count professionals double?</h2>
       <p>
-        Anyone with a browser can rate on the community panel. The professional panel is for
-        invited players rating their own field, and a rating there counts for twice as much,
-        so the Combined score leans towards them.
+        Anyone with a Discord account can rate on the community panel. The professional
+        panel is for invited players rating their own field, and a rating there counts for
+        twice as much, so the Combined score leans towards them.
       </p>
       <p>
         That weighting is a choice somebody made, not a measurement of anybody. And a player
@@ -618,7 +626,9 @@ export const helpPage = state => `
         currently no way to ask for an invite or to use one.
       </p>
       <p>
-        Signing in with Discord is planned, and that is what will open the panel up.
+        Signing in with Discord is not that route: it is what lets you rate at all, and it
+        makes you a community rater. Opening the professional panel up is a separate thing,
+        and nobody has built it.
       </p>
     </div>
 
@@ -633,12 +643,25 @@ export const helpPage = state => `
 // ---- privacy ----
 
 /**
- * Every claim here is checkable against `migrations/0001_init.sql`, `src/worker.js` and
- * `public/index.html`. If you change what is stored, this page is part of the change —
- * see `.scratch/content-pages/03-privacy-statement.md`.
+ * Every claim here is checkable against `migrations/0001_init.sql`,
+ * `migrations/0007_accounts.sql`, `src/auth.js`, `src/worker.js` and `public/index.html`.
+ * If you change what is stored, this page is part of the change — see
+ * `.scratch/content-pages/03-privacy-statement.md`.
  *
  * The § 5 DDG exemption on the legal notice does NOT extend to this page: that provision
  * scopes on commercial purpose, the GDPR does not.
+ *
+ * The cookie sentence names one cookie and asks for no consent, which is the honest answer
+ * rather than a shortcut: § 25(2) TDDDG exempts storage that is strictly necessary for a
+ * service the visitor asked for, and a session cookie that only keeps them signed in is
+ * that. A banner on a site with no analytics would be theatre. The provision is not named
+ * on the page — the reader is owed the fact, not the citation, and a test keeps "DDG" off
+ * this page so the legal notice's § 5 reasoning cannot be read as covering it.
+ *
+ * Two claims here depend on code outside this file staying the way it is: that the browser
+ * holds no rating identity of its own (nothing may mint `localStorage.voterAtlas` again —
+ * `api.js`), and that nothing renders the stored avatar (`cdn.discordapp.com` would make
+ * the no-third-party-origin claim false — a test asserts it against rendered output).
  */
 export const privacyPage = state => `
   <section class="prose" aria-label="Privacy">
@@ -657,20 +680,29 @@ export const privacyPage = state => `
 
     <h2>If you submit a rating</h2>
     <p>
-      What is written to the database is: which player, which panel, five scores from 0 to
-      100, the time, and a <em>voter hash</em>. No name, no email address, no IP address.
+      Rating means signing in with Discord first. What is written with the rating is: which
+      player, which panel, five scores from 0 to 100, the time, a <em>voter hash</em>, and
+      which account cast it. No name, no email address, no IP address.
     </p>
     <p>
-      The voter hash is a one-way hash of a random token your browser generated. It cannot
-      be turned back into you.
+      The voter hash is a one-way hash of your Discord account id. Nobody who reads it can
+      work out whose it is. This site can: it holds the account the hash was made from, so
+      every rating you cast is attached to your account, and through it to every other
+      rating you have cast.
     </p>
 
-    <h2>What stays in your browser</h2>
+    <h2>Cookies, and what else stays in your browser</h2>
     <p>
-      No cookies, no analytics, no advertising, no tracking pixels. Three values in your
-      browser's own storage, none of which leaves it except as described above: the rating
-      token, a professional access token if you have one (30 days), and an administrator
-      token if you are one (until the tab closes).
+      One cookie, set when you sign in. It is what keeps you signed in, it is readable only
+      by this site, and it lasts 30 days or until you sign out. There is no banner asking
+      you to accept it: a cookie that does nothing but keep you signed in needs no
+      permission, and there is nothing else here to permit — no analytics, no advertising,
+      no tracking pixels.
+    </p>
+    <p>
+      Two further values, in your browser's own storage, neither of which leaves it except
+      as described above: a professional access token if you have one (30 days), and an
+      administrator token if you are one (until the tab closes).
     </p>
 
     <h2>Cloudflare, as the host</h2>
@@ -687,19 +719,27 @@ export const privacyPage = state => `
       </a>
     </p>
 
-    <h2 data-planned="1">Signing in with Discord ${plannedTag}</h2>
+    <h2>Signing in with Discord</h2>
     <p>
-      <strong>None of this happens yet.</strong>
+      Signing in sends you to Discord and back, so Discord sees that you are signing in
+      here. What this site is told is your Discord account id, your username, your display
+      name, and which profile picture you have set. Never your email address. The picture
+      is stored but never shown here, and nothing on this site loads anything from Discord.
     </p>
     <p>
-      Accounts are planned. When they arrive, signing in with Discord means this site
-      receives your Discord account id, your username and your avatar, and a rating stops
-      being attached to a throwaway browser token: it becomes attached to <em>you</em>.
-      Every rating you have cast would then be attributable to one identifiable person and
-      linkable across every player you have rated, permanently.
+      From that point a rating is no longer attached to a throwaway browser token: it is
+      attached to <em>you</em>. Every rating you cast is attributable to one identifiable
+      person and linkable across every player you have rated, for as long as the account
+      exists.
     </p>
     <p>
-      What happens to ratings cast before that point is not yet decided.
+      Every rating cast before accounts existed has been deleted — scores and all, with
+      nothing kept.
+    </p>
+    <p>
+      <a class="extlink" href="${DISCORD_PRIVACY}" target="_blank" rel="nofollow noopener noreferrer">
+        Discord's privacy policy <span aria-hidden="true">↗</span>
+      </a>
     </p>
 
     <h2>Your rights, and how to use them</h2>
@@ -744,27 +784,34 @@ export const privacyPage = state => `
  *
  * ---
  *
- * THE ACCOUNT RULES ARE PUBLISHED AHEAD OF THE CODE, ON PURPOSE. "Your account" states
- * rules for a sign-in that does not exist yet, in the present tense, because a rule has to
+ * THE ACCOUNT RULES WERE PUBLISHED AHEAD OF THE CODE, ON PURPOSE. "Your account" stated
+ * rules for a sign-in that did not exist yet, in the present tense, because a rule has to
  * be published before the conduct it governs — not marked `planned` and not hedged.
  *
- * So this page is a promise the implementation has to keep, and these are the four things
- * that would break it. If you are building any of them, you are editing this page too:
+ * Sign-in has landed, and the four claims were re-read against it on 30 October 2026.
+ * Where they stand now:
  *
- *   1. The OAuth scope. The page says "never your email address", so the scope stays
- *      `identify`. A test in test/frontend.test.js fails if any scope in src/ asks for one.
- *   2. What is stored about an account. The page names the Discord account id, username and
- *      avatar. Anything else stored is a third thing this page has not told the reader.
- *   3. What blocking does. The page says a blocked account cannot sign in and its ratings
- *      are removed from the site. The implementation excludes them from the published
- *      scores rather than deleting the rows — deliberately, see the ticket — but anything
- *      that leaves them published makes this false.
- *   4. One account per person. If that stops being the rule, it stops being on this page.
+ *   1. The OAuth scope. The page says "never your email address", and `SCOPE` in
+ *      src/auth.js is `identify`. A test in test/frontend.test.js fails if any scope in
+ *      src/ asks for one, and it stays.
+ *   2. What is stored about an account. `migrations/0007_accounts.sql` holds the Discord
+ *      account id, the username, the global name, the avatar, a role and timestamps — so
+ *      the page names the display name as well, and says the picture is stored and never
+ *      shown, because it is: nothing renders it, and an `<img>` at cdn.discordapp.com
+ *      would break the no-third-party-origin claim on the privacy page. Anything stored
+ *      beyond this list is a thing this page has not told the reader.
+ *   3. What blocking does. STILL A PROMISE, NOT A DESCRIPTION. Nothing in this repository
+ *      can block an account; ../moderation/03 owns it. When it lands it must exclude the
+ *      ratings from the published scores rather than delete the rows — content-pages/05
+ *      decision 2 — and anything that leaves them published makes this page false.
+ *   4. One account per person. Stated, and unenforceable by design: a second Discord
+ *      account costs an email address and a few minutes. It is a rule a block can point
+ *      at, not a mechanism. If it stops being the rule, it stops being on this page.
  *
- * A second test trips the moment Discord auth routes land in src/, so none of the above can
- * ship without someone re-reading this.
+ * The tripwire that forced this re-read has done its job and is deleted. Its successor
+ * watches src/ for blocking, because 3 is the claim still ahead of the code.
  */
-export const TERMS_UPDATED = '16 October 2026';
+export const TERMS_UPDATED = '30 October 2026';
 
 export const termsPage = state => `
   <section class="prose" aria-label="Terms of service">
@@ -796,9 +843,9 @@ export const termsPage = state => `
 
     <h2>Your account</h2>
     <p>
-      Rating means signing in with Discord. This site holds your Discord account id, and
-      your username and avatar to show you who you are signed in as. Never your email
-      address.
+      Rating means signing in with Discord. This site holds your Discord account id, the
+      username and display name Discord shows for you, and which profile picture you have
+      set. Never your email address. Your picture is kept but never shown here.
     </p>
     <p>
       One account per person. Rating from more than one is grounds for blocking.
