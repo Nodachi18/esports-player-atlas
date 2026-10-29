@@ -8,8 +8,12 @@ import { buildRanking, filterPlayers, resolveSelection } from './ranking.js';
 import { canDelete, formValues, resultFor } from './playerForm.js';
 import { stateFromSearch, searchFromState, update } from './state.js';
 
-// Flip when Discord accounts exist: it turns on the spec's target-state visibility rules.
-const ACCOUNTS_ENABLED = false;
+// Discord accounts exist, so this is on: it turns on the spec's target-state visibility
+// rules. Rate prompts rather than inviting anyone, and Account appears as planned.
+// Turning it back off does not undo the set it belongs to — the server gates a community
+// rating on the session either way, so a false here hides the sign-in control in front of
+// a rating route that still refuses everyone. It is a visibility flag, not a kill switch.
+const ACCOUNTS_ENABLED = true;
 
 let state = stateFromSearch(location.search);
 

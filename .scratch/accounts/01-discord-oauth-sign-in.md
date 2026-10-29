@@ -113,10 +113,10 @@ belongs in the same deploy as the thing that justifies it.
 | 02 | [Accounts schema, the ratings FK, and the flush](01-discord-oauth-sign-in/02-accounts-schema-and-the-flush.md) | **resolved 2026-10-29** | — |
 | 03 | [The auth seams, and the tests that cover them](01-discord-oauth-sign-in/03-auth-seams-and-their-tests.md) | **resolved 2026-10-29** | — |
 | 04 | [The three auth routes](01-discord-oauth-sign-in/04-the-three-auth-routes.md) | **resolved 2026-10-30** | 01, 03 |
-| 05 | [Session-gated rating, and /api/auth/me](01-discord-oauth-sign-in/05-session-gated-rating.md) | ready-for-agent | 02, 04 |
-| 06 | [The signed-in shell](01-discord-oauth-sign-in/06-the-signed-in-shell.md) | ready-for-agent | 05 |
+| 05 | [Session-gated rating, and /api/auth/me](01-discord-oauth-sign-in/05-session-gated-rating.md) | **resolved 2026-10-30** | 02, 04 |
+| 06 | [The signed-in shell](01-discord-oauth-sign-in/06-the-signed-in-shell.md) | **resolved 2026-10-30** | 05 |
 | 07 | [Make the published promises true](01-discord-oauth-sign-in/07-make-the-published-promises-true.md) | **resolved 2026-10-30** | — |
-| 08 | [Turn accounts on](01-discord-oauth-sign-in/08-turn-accounts-on.md) | ready-for-agent | 06, 07 |
+| 08 | [Turn accounts on](01-discord-oauth-sign-in/08-turn-accounts-on.md) | **flip committed; deployed walk outstanding** | 06, 07 |
 
 [02-token-kind-discriminator.md](02-token-kind-discriminator.md) merges first and separately.
 

@@ -1,6 +1,6 @@
 # Turn accounts on
 
-Status: ready-for-agent
+Status: ready-for-human — the flip is committed, the deployed walk is not done
 Part of: [../01-discord-oauth-sign-in.md](../01-discord-oauth-sign-in.md)
 Blocked by: 06, 07
 

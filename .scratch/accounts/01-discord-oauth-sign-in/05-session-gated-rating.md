@@ -1,6 +1,6 @@
 # Session-gated rating, and /api/auth/me
 
-Status: ready-for-agent
+Status: resolved
 Part of: [../01-discord-oauth-sign-in.md](../01-discord-oauth-sign-in.md)
 Blocked by: 02, 04
 
