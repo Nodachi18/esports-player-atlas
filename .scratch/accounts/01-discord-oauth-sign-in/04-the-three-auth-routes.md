@@ -1,6 +1,6 @@
 # The three auth routes
 
-Status: ready-for-agent
+Status: resolved
 Part of: [../01-discord-oauth-sign-in.md](../01-discord-oauth-sign-in.md)
 Blocked by: 01, 03
 

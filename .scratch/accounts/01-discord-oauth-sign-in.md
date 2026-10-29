@@ -112,10 +112,10 @@ belongs in the same deploy as the thing that justifies it.
 | 01 | [Provision the Discord application](01-discord-oauth-sign-in/01-provision-the-discord-application.md) | **resolved 2026-10-29** | — |
 | 02 | [Accounts schema, the ratings FK, and the flush](01-discord-oauth-sign-in/02-accounts-schema-and-the-flush.md) | **resolved 2026-10-29** | — |
 | 03 | [The auth seams, and the tests that cover them](01-discord-oauth-sign-in/03-auth-seams-and-their-tests.md) | **resolved 2026-10-29** | — |
-| 04 | [The three auth routes](01-discord-oauth-sign-in/04-the-three-auth-routes.md) | ready-for-agent | 01, 03 |
+| 04 | [The three auth routes](01-discord-oauth-sign-in/04-the-three-auth-routes.md) | **resolved 2026-10-30** | 01, 03 |
 | 05 | [Session-gated rating, and /api/auth/me](01-discord-oauth-sign-in/05-session-gated-rating.md) | ready-for-agent | 02, 04 |
 | 06 | [The signed-in shell](01-discord-oauth-sign-in/06-the-signed-in-shell.md) | ready-for-agent | 05 |
-| 07 | [Make the published promises true](01-discord-oauth-sign-in/07-make-the-published-promises-true.md) | ready-for-agent | — |
+| 07 | [Make the published promises true](01-discord-oauth-sign-in/07-make-the-published-promises-true.md) | **resolved 2026-10-30** | — |
 | 08 | [Turn accounts on](01-discord-oauth-sign-in/08-turn-accounts-on.md) | ready-for-agent | 06, 07 |
 
 [02-token-kind-discriminator.md](02-token-kind-discriminator.md) merges first and separately.
@@ -147,6 +147,14 @@ Decisions taken while breaking this down, none of them recoverable from the tick
   the budget is 10/60s for that reason. Full reasoning in
   [04](01-discord-oauth-sign-in/04-the-three-auth-routes.md).
 - **No snowflake age gate** at launch. The signal is free and recomputable at any time.
+- **The terms page knowingly overstates on blocking**, and that is left standing rather than
+  softened. Rules 8 and 9 say a blocked account cannot sign in and its ratings leave the
+  published scores; nothing in this repository can block an account, and
+  [../moderation/03-ban-accounts-and-moderate-ratings.md](../moderation/03-ban-accounts-and-moderate-ratings.md)
+  owns it. The rule was published ahead of its code on purpose. When 07 deleted the
+  spent tripwire it left a successor in its place, grepping `src/` for blocking so the
+  pages get re-read when that lands — **name-based, so moderation/03 can slip past it with
+  different column names.** Worth knowing when that ticket is written.
 
 ## Comments
 

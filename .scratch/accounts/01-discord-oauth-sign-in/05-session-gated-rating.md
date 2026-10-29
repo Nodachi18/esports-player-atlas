@@ -26,7 +26,10 @@ cookie that does not verify as kind `'session'`, is `401`. Then:
 - `voter_hash` becomes `sha256('account:' + snowflake)`, replacing
   `sha256('community:' + voter)`.
 - `account_id` is written alongside it, from the account row.
-- The `voter` body field is gone. Reject it being absent rather than falling back.
+- The `voter` body field is gone. Reject it being absent rather than falling back. The
+  client half — `voterId()` in `public/app/api.js` and the `body.voter` line in `main.js` —
+  is [06](06-the-signed-in-shell.md)'s, and the privacy page is already published saying
+  that token no longer exists. Until both halves land, the two are out of step.
 
 **The professional panel is untouched.** It keeps its bearer token and
 `sha256('pro:' + invite.id)`. Nothing can create a professional account until

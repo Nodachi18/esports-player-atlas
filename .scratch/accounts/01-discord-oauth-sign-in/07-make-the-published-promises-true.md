@@ -1,6 +1,6 @@
 # Make the published promises true
 
-Status: ready-for-agent
+Status: resolved
 Part of: [../01-discord-oauth-sign-in.md](../01-discord-oauth-sign-in.md)
 Blocked by: —
 

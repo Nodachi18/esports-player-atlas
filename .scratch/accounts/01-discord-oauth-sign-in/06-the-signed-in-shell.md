@@ -47,6 +47,17 @@ network in the last minute, try again shortly. It exists because the rate limite
 successful sign-ins too — so a whole office or campus behind one address can trip it while
 doing nothing wrong. Telling them to wait a minute is actionable; "sign-in failed" is not.
 
+**Delete the browser's rating identity.** `voterId()` in `public/app/api.js` mints
+`localStorage.voterAtlas` and `main.js` sends it as `body.voter` on every community rating.
+[05](05-session-gated-rating.md) stops the server reading it; this ticket removes it from
+the client. Both halves have to go — the function and the field.
+
+**This is not tidying, it is a published claim.** [07](07-make-the-published-promises-true.md)
+has already shipped a privacy page that says the rating token is gone and that your ratings
+are attached to your account. While `voterAtlas` is still minted, that page is false about
+what is in the reader's browser. Add a test that nothing under `public/app/` mints it again,
+in the shape of the same-origin grep beside it — the page has no other guard.
+
 ## Watch out
 
 - `render()` replaces `root.innerHTML` wholesale. Session state belongs in the `session`
