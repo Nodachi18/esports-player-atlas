@@ -46,7 +46,16 @@ re-show it.
 - `render()` replaces `root.innerHTML` wholesale. Session state belongs in the `session`
   object beside the others, not in the DOM.
 - The Account page stays `planned`. `nav.js` already returns it that way for a signed-in
-  user, and `views.plannedPage` already renders it. Building it is a follow-up.
+  user, and `views.plannedPage` already renders it. Building it is a follow-up, and it has
+  no ticket yet.
+- **`account` is in `RETURN_PAGES`** (`src/auth.js`, ticket 03) — confirmed deliberate on
+  2026-10-29 rather than narrowed. It reads like a hole, because returning a visitor to a
+  page that renders as `planned` is a poor landing. It is unreachable today: signed out,
+  `account` is not in `navigation()`, so `render()` bounces it to `players` through
+  `isReachable` before a sign-in could ever start from there. So the value can only be
+  produced once the Account page exists, which is when it becomes the right answer. **Do
+  not "fix" it by narrowing the list**; the thing to check instead is that `isReachable`
+  still guards the signed-out case.
 - Nothing may load from another origin, and a test enforces it.
 
 ## Done when

@@ -1,6 +1,6 @@
 # The auth seams, and the tests that cover them
 
-Status: ready-for-agent
+Status: resolved
 Part of: [../01-discord-oauth-sign-in.md](../01-discord-oauth-sign-in.md)
 Blocked by: —
 

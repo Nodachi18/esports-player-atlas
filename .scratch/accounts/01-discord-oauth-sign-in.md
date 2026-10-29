@@ -109,13 +109,18 @@ belongs in the same deploy as the thing that justifies it.
 |---|---|---|---|
 | 01 | [Provision the Discord application](01-discord-oauth-sign-in/01-provision-the-discord-application.md) | ready-for-human | — |
 | 02 | [Accounts schema, the ratings FK, and the flush](01-discord-oauth-sign-in/02-accounts-schema-and-the-flush.md) | ready-for-agent | — |
-| 03 | [The auth seams, and the tests that cover them](01-discord-oauth-sign-in/03-auth-seams-and-their-tests.md) | ready-for-agent | — |
+| 03 | [The auth seams, and the tests that cover them](01-discord-oauth-sign-in/03-auth-seams-and-their-tests.md) | **resolved 2026-10-29** | — |
 | 04 | [The three auth routes](01-discord-oauth-sign-in/04-the-three-auth-routes.md) | ready-for-agent | 01, 03 |
 | 05 | [Session-gated rating, and /api/auth/me](01-discord-oauth-sign-in/05-session-gated-rating.md) | ready-for-agent | 02, 04 |
 | 06 | [The signed-in shell](01-discord-oauth-sign-in/06-the-signed-in-shell.md) | ready-for-agent | 05 |
 | 07 | [Make the published promises true, and turn accounts on](01-discord-oauth-sign-in/07-make-the-published-promises-true.md) | ready-for-agent | 06 |
 
 [02-token-kind-discriminator.md](02-token-kind-discriminator.md) merges first and separately.
+
+**Falling out of this set, with no ticket yet:** the Account page itself. `nav.js` renders
+it as `planned` for a signed-in visitor and `views.plannedPage` fills it, which is honest
+but empty. It is also the only page sign-in can return someone to that does not yet exist —
+see the note in [06](01-discord-oauth-sign-in/06-the-signed-in-shell.md).
 
 Decisions taken while breaking this down, none of them recoverable from the tickets alone:
 
