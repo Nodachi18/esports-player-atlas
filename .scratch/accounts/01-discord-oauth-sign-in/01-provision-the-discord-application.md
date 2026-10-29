@@ -1,6 +1,6 @@
 # Provision the Discord application
 
-Status: ready-for-human
+Status: resolved
 Part of: [../01-discord-oauth-sign-in.md](../01-discord-oauth-sign-in.md)
 Blocked by: —
 
@@ -64,3 +64,18 @@ deployed.
 The portal lists exactly those two redirect URIs, the Terms of Service URL is filled, three
 secrets exist locally in `.dev.vars` and three exist on the deployed Worker
 (`npx wrangler secret list` shows the names, never the values).
+
+## Comments
+
+**2026-10-29 — done.** Verified from here, without reading a value: `.dev.vars` carries
+`DISCORD_CLIENT_ID`, `DISCORD_CLIENT_SECRET` and `DISCORD_REDIRECT_URI` alongside the two
+that were already there, and the local redirect URI is
+`http://localhost:8787/api/auth/discord/callback`. `wrangler secret list` shows all three
+names on the deployed Worker.
+
+**The one thing nobody can verify from the repository is the deployed
+`DISCORD_REDIRECT_URI` value**, because a Worker secret is write-only — `secret list` prints
+names, never values. If it was stored with the localhost URI, or without the `www.`, the
+first sign-in on the deployed origin fails with `invalid_redirect_uri` and nothing earlier
+than that will say so. That is the failure to suspect first if
+[07](07-make-the-published-promises-true.md)'s deployed hand-check does not work.
