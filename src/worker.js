@@ -4,7 +4,9 @@
 import { CATEGORIES, summarize, outlierIds, combine, categoryScores, overall } from './stats.js';
 import { validatePlayerInput } from './players.js';
 import {
+  SESSION_COOKIE,
   SESSION_MAX_AGE_SECONDS,
+  readCookie,
   sessionCookie,
   expiredSessionCookie,
   statePayload,
@@ -156,7 +158,9 @@ async function route(request, env, url) {
     return json(200, { token: await signToken(env, { role: 'pro', invite: invite.id, exp: Date.now() + PRO_TOKEN_TTL }) });
   }
 
-  if (method === 'POST' && path === '/api/ratings') return submitRating(env, await readJson(request));
+  // The request itself goes through, not only its body: the community panel is identified
+  // by the session cookie now, and a parsed body has no headers on it.
+  if (method === 'POST' && path === '/api/ratings') return submitRating(request, env, await readJson(request));
 
   if (method === 'POST' && path === '/api/admin/login') {
     const { key } = await readJson(request);
@@ -207,6 +211,24 @@ async function authRoute(request, env, method, path, url) {
     });
   }
 
+  if (method === 'GET' && path === '/api/auth/me') {
+    // 200 in both states, never 401. This is the probe every page load makes to decide
+    // which shell to draw; a visitor who has simply not signed in has not failed at
+    // anything, and an error status on the ordinary case would be a lie told on every
+    // first visit — and one the client would have to special-case back into a null.
+    const account = await sessionAccount(request, env);
+    // Three fields, chosen by what the shell renders. The snowflake is the identity and
+    // stays server-side; the avatar is stored and deliberately never rendered (loading it
+    // means a request to cdn.discordapp.com, which the privacy page says nothing here
+    // does); `exp` would tell a page something it cannot act on, since it cannot read the
+    // cookie it would be describing.
+    return json(200, {
+      account: account
+        ? { username: account.username, global_name: account.global_name, role: account.role }
+        : null,
+    });
+  }
+
   if (method === 'GET' && path === '/api/auth/discord/callback') return discordCallback(request, env, url);
 
   if (method === 'POST' && path === '/api/auth/logout') {
@@ -218,6 +240,33 @@ async function authRoute(request, env, method, path, url) {
   }
 
   return json(404, { error: 'Not found' });
+}
+
+/**
+ * The signed-in account row, or `null` — the one place a session cookie turns into an
+ * identity.
+ *
+ * `Authorization: Bearer` is not consulted here and is not affected by this: admin routes
+ * and the professional rating path keep reading the header exactly as they did. This adds
+ * a second way to be somebody, it does not replace the first.
+ *
+ * `kind` is checked here, at the call site, for the same reason discordCallback checks it:
+ * every token this Worker issues is signed with the same key, so a state token handed back
+ * as a cookie verifies perfectly well — and `/api/auth/discord/start` hands one to anybody
+ * who asks. It carries no `sub`, which is why the second half of the condition is not
+ * redundant: without it the lookup would run on `undefined`. Moving the check inside
+ * verifyToken for every caller is .scratch/accounts/02-token-kind-discriminator.md, which
+ * merges separately.
+ *
+ * The row is read rather than trusted from the token: the token carries a snowflake and
+ * nothing else, while `account_id` and `role` live in the database, and a row that has
+ * since been deleted has to come back as signed out rather than as a dangling id.
+ */
+async function sessionAccount(request, env) {
+  const token = await verifyToken(env, readCookie(request.headers.get('cookie'), SESSION_COOKIE));
+  if (token?.kind !== 'session' || !token.sub) return null;
+  return env.DB.prepare('select id,discord_id,username,global_name,role from accounts where discord_id=?')
+    .bind(String(token.sub)).first();
 }
 
 /**
@@ -488,29 +537,56 @@ async function deletePlayer(db, slug) {
   return json(200, { slug, ratings: count.results[0].n });
 }
 
-async function submitRating(env, b) {
+/**
+ * There are no anonymous ratings. The community panel is the session cookie and nothing
+ * else — no body field names the rater any more, and there is no fallback to one, because
+ * a fallback is the whole defect: a browser token resets in two clicks, so a published
+ * median built on one is decoration.
+ *
+ * The professional panel is untouched, bearer token and all. It has to be: nothing in this
+ * repository can make an account professional until
+ * .scratch/accounts/04-promote-account-to-professional.md, so gating it on a session now
+ * would leave no route at all to a professional rating.
+ *
+ * `voter_hash` is still what `UNIQUE (player_id, panel, voter_hash)` enforces one rating
+ * per player per panel on, and the 409 below is unchanged. `account_id` is written beside
+ * it rather than instead of it: terms rule 9 requires a blocked account's ratings to leave
+ * the published scores, and the moderation ticket that does that wants an index to find
+ * them by, not a hash it has to recompute from an identity it holds.
+ *
+ * The two prefixes are two namespaces on purpose — `account:` never collides with the
+ * legacy `community:`, which matters not at all now that 0007 emptied the table, and would
+ * have mattered if it had not.
+ */
+async function submitRating(request, env, b) {
   const db = env.DB;
   const player = await db.prepare('select id,slug from players where slug=? and active=1').bind(String(b.player || '')).first();
   if (!player) return json(404, { error: 'Player not found' });
 
   const panel = b.panel === 'professional' ? 'professional' : 'community';
-  let voterHash;
+  let voterHash, accountId = null;
   if (panel === 'professional') {
     const token = await verifyToken(env, b.token);
     if (token?.role !== 'pro') return json(401, { error: 'Professional access required' });
     voterHash = await sha256Hex('pro:' + token.invite);
   } else {
-    const voter = String(b.voter || '');
-    if (voter.length < 20 || voter.length > 200) return json(400, { error: 'Missing voter token' });
-    voterHash = await sha256Hex('community:' + voter);
+    // SameSite=Lax is what makes this safe to accept on a cookie alone: it excludes
+    // cross-site fetch(), so a POST from anywhere but this origin arrives without one.
+    const account = await sessionAccount(request, env);
+    if (!account) return json(401, { error: 'Sign in to rate' });
+    // The snowflake, not the row id. It is the identity Discord guarantees, it is stable
+    // across a row being deleted and recreated, and it is the value a hash has to be
+    // reproducible from later.
+    voterHash = await sha256Hex('account:' + account.discord_id);
+    accountId = account.id;
   }
 
   const scores = CATEGORIES.map(c => Number(b[c]));
   if (scores.some(x => !Number.isInteger(x) || x < 0 || x > 100)) return json(400, { error: 'Scores must be 0-100 integers' });
 
   try {
-    await db.prepare(`insert into ratings(player_id,panel,voter_hash,${SCORE_COLUMNS}) values(?,?,?,?,?,?,?,?)`)
-      .bind(player.id, panel, voterHash, ...scores).run();
+    await db.prepare(`insert into ratings(player_id,panel,voter_hash,account_id,${SCORE_COLUMNS}) values(?,?,?,?,?,?,?,?,?)`)
+      .bind(player.id, panel, voterHash, accountId, ...scores).run();
   } catch (e) {
     if (String(e.message).includes('UNIQUE')) return json(409, { error: 'Already rated this player' });
     throw e;
