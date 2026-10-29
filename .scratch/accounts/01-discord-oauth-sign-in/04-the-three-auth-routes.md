@@ -34,9 +34,9 @@ the snowflake as `sub`, and a 30-day `exp`.
 ## Rate limiting
 
 A second `ratelimits` entry in `wrangler.jsonc` named `AUTH_LIMIT`, its own `namespace_id`
-(`LOGIN_LIMIT` is `1001`; pick `1002`), and one `if` in the **exchange-failure branch** of
-the callback — after the state has verified, when the call to Discord did not succeed.
-Keyed on `CF-Connecting-IP`, failing open when the header is absent, in the shape of
+(`LOGIN_LIMIT` is `1001`; pick `1002`), and one `if` **immediately before the token
+exchange** — after the state and the code have been checked, so a garbage state still costs
+nothing. Keyed on `CF-Connecting-IP`, failing open when the header is absent, in the shape of
 [../../admin-player-crud/issues/04-destructive-routes-and-rate-limiting/rate-limit.md](../../admin-player-crud/issues/04-destructive-routes-and-rate-limiting/rate-limit.md).
 
 **The reason is not what it is for `/api/admin/login`, and the difference matters if anyone
@@ -54,6 +54,18 @@ could not deliver: *apply it to `/api/auth/*` once sign-in exists.*
 
 A separate binding rather than reusing `LOGIN_LIMIT`, because one shared bucket per IP means
 hammering `/auth/*` locks the administrator out of their own site.
+
+**Corrected 2026-10-30, after this ticket was built as written.** The first version of this
+section put the `if` in the exchange-failure branch, copying the admin login's rule that a
+success must never spend budget. That rule does not transfer. It protects a guessable
+secret, and there the call being counted is local — here the outbound call *is* the thing
+being protected, so `.limit()` after the `fetch` caps the response the attacker sees while
+the amplification continues one-for-one. The control has to sit in front of the exchange,
+which means a successful sign-in spends budget too. That is the trade, taken deliberately:
+a person signs in once, so the only caller that feels it is a whole shared address at once,
+and the budget is 10/60s rather than 5 for exactly that reason. A refusal here redirects to
+`/?page=rate&auth=busy` rather than returning JSON, because unlike the admin login this
+branch is now reachable by somebody doing nothing wrong.
 
 **There is no WAF alternative here and there never will be without buying a domain.**
 WAF and rate-limiting rules attach to a zone; `www.esports-player-atlas.workers.dev` is not

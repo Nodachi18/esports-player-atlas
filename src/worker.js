@@ -29,6 +29,7 @@ const STATE_TTL = 5 * 60e3;
 // Every way sign-in can fail answers with this one URL. A reason in the query string would
 // be shareable, loggable and visible to the one party that already knows what it did wrong.
 const AUTH_FAILED = '/?page=rate&auth=failed';
+const AUTH_BUSY = '/?page=rate&auth=busy';
 // Discord caps a username and a global name at 32 characters and an avatar hash at 34.
 // These columns are a display cache, so the cap is a sanity bound on a third party's
 // response, not a validation rule.
@@ -268,6 +269,37 @@ async function discordCallback(request, env, url) {
   const code = q.get('code');
   if (!code) return failed();
 
+  // AUTH_LIMIT, consulted *before* the exchange, and its reason is not the admin login's.
+  // There is no guessable secret anywhere in this flow: `state` is HMAC-SHA256 over
+  // APP_SECRET, so forging one means already holding the secret. What this guards against
+  // is amplification — a caller fetches one legitimate state from /start for free, then
+  // replays it here with a garbage code, and every replay makes this Worker POST to
+  // discord.com. Discord rate limits per application, so a few minutes of that gets our
+  // client 429'd and sign-in stops working for everyone. An availability control, not a
+  // credential one.
+  //
+  // That is also why it cannot sit in the failure branch, where it was first written. The
+  // admin login's rule — never spend budget on a success — protects a guessable secret, and
+  // there the call being counted is local. Here the call *is* the thing being protected, so
+  // counting after it has already gone out caps the response and not the amplification. The
+  // cost of getting it right is that a successful sign-in spends budget too; a person signs
+  // in once, so the only caller that notices is a whole shared address at once, which is
+  // what the budget of 10/60s is sized for.
+  //
+  // Its own namespace rather than LOGIN_LIMIT's: one shared bucket per IP would mean that
+  // hammering /api/auth/* locks the administrator out of their own site.
+  //
+  // Keyed and failing open exactly as POST /api/admin/login is: the edge sets
+  // CF-Connecting-IP and a client cannot suppress it, and it is absent only under
+  // `wrangler dev`.
+  const ip = request.headers.get('CF-Connecting-IP');
+  if (ip && !(await env.AUTH_LIMIT.limit({ key: ip })).success) {
+    // Its own parameter rather than auth=failed, because this one is now reachable by
+    // somebody doing nothing wrong — everyone behind one address trying to sign in at
+    // once — and "try again in a minute" is actionable where "sign-in failed" is not.
+    return authResponse(302, { location: AUTH_BUSY });
+  }
+
   const { clientId, clientSecret, redirectUri } = discordSecrets(env);
   // Form-encoded. The token endpoint does not accept JSON, and the failure mode if you
   // send it anyway is an unhelpful invalid_request.
@@ -276,39 +308,7 @@ async function discordCallback(request, env, url) {
     headers: { 'content-type': 'application/x-www-form-urlencoded' },
     body: tokenRequestBody({ clientId, clientSecret, code, redirectUri }),
   });
-  if (!exchange.ok) {
-    // AUTH_LIMIT, and its reason is not the admin login's. There is no guessable secret
-    // anywhere in this flow: `state` is HMAC-SHA256 over APP_SECRET, so forging one means
-    // already holding the secret. What this guards against is amplification — a caller
-    // fetches one legitimate state from /start for free, then replays it here with a
-    // garbage code, and every replay makes this Worker POST to discord.com. Discord rate
-    // limits per application, so a few minutes of that gets our client 429'd and sign-in
-    // stops working for everyone. An availability control, not a credential one. Anyone
-    // moving this later needs that distinction, because the admin login's placement rule
-    // ("never spend budget on a success") was written for the other reason entirely.
-    //
-    // Its own namespace rather than LOGIN_LIMIT's: one shared bucket per IP would mean
-    // that hammering /api/auth/* locks the administrator out of their own site.
-    //
-    // KNOWN LIMIT, stated rather than quietly carried: counting here means the refusal
-    // lands after the outbound POST has already been made, so this caps the response and
-    // not the call it is named for. Capping the call means consulting the limiter in front
-    // of the exchange, which also spends budget on successful sign-ins. Specified this way
-    // in .scratch/accounts/01-discord-oauth-sign-in/04-the-three-auth-routes.md; the
-    // reasoning above is what a change to either placement has to answer to.
-    //
-    // Keyed and failing open exactly as POST /api/admin/login is: the edge sets
-    // CF-Connecting-IP and a client cannot suppress it, and it is absent only under
-    // `wrangler dev`.
-    const ip = request.headers.get('CF-Connecting-IP');
-    if (ip && !(await env.AUTH_LIMIT.limit({ key: ip })).success) {
-      // The one failure that does not redirect. Six failed exchanges from one address
-      // inside a minute is not a person signing in, and a refusal that looks identical to
-      // the thing it is refusing is a refusal nobody can act on.
-      return json(429, { error: 'Too many attempts. Please try again shortly.' });
-    }
-    return failed();
-  }
+  if (!exchange.ok) return failed();
 
   const grant = await exchange.json().catch(() => null);
   if (!grant?.access_token) return failed();

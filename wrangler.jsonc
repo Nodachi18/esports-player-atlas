@@ -39,7 +39,10 @@
       // the exchange-failure branch in src/worker.js.
       "name": "AUTH_LIMIT",
       "namespace_id": "1002",
-      "simple": { "limit": 5, "period": 60 }
+      // Ten rather than the admin login's five: this one is consulted before the token
+      // exchange, so a successful sign-in spends budget too, and the caller that would
+      // notice is an entire shared address signing in at once.
+      "simple": { "limit": 10, "period": 60 }
     }
   ],
   "observability": { "enabled": true },

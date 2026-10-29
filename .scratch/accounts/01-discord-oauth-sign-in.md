@@ -140,9 +140,12 @@ Decisions taken while breaking this down, none of them recoverable from the tick
   cheapest that column will ever be, and terms rule 9 needs it.
 - **The avatar is stored and never rendered.** Rendering it means loading from
   `cdn.discordapp.com`, which the privacy page says nothing here does.
-- **Rate limiting stays**, on the callback's exchange-failure branch only, and for
-  amplification rather than guessing — there is no guessable secret in this flow. Full
-  reasoning in [04](01-discord-oauth-sign-in/04-the-three-auth-routes.md).
+- **Rate limiting stays**, for amplification rather than guessing — there is no guessable
+  secret in this flow. Specified on the exchange-failure branch and **corrected on
+  2026-10-30 to sit in front of the exchange**, because counting after the outbound call
+  caps the response and not the amplification. A successful sign-in now spends budget;
+  the budget is 10/60s for that reason. Full reasoning in
+  [04](01-discord-oauth-sign-in/04-the-three-auth-routes.md).
 - **No snowflake age gate** at launch. The signal is free and recomputable at any time.
 
 ## Comments

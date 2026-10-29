@@ -41,6 +41,12 @@ once accounts are on.
 again. Read it out of the query string and drop it from the state, so a reload does not
 re-show it.
 
+**`?auth=busy`** is the same mechanism with a different line: too many sign-ins from your
+network in the last minute, try again shortly. It exists because the rate limiter in
+[04](04-the-three-auth-routes.md) sits in front of the token exchange and therefore counts
+successful sign-ins too — so a whole office or campus behind one address can trip it while
+doing nothing wrong. Telling them to wait a minute is actionable; "sign-in failed" is not.
+
 ## Watch out
 
 - `render()` replaces `root.innerHTML` wholesale. Session state belongs in the `session`
