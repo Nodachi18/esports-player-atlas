@@ -29,6 +29,17 @@
       "name": "LOGIN_LIMIT",
       "namespace_id": "1001",
       "simple": { "limit": 5, "period": 60 }
+    },
+    {
+      // Failed code exchanges on /api/auth/discord/callback. A second namespace rather
+      // than a second user of LOGIN_LIMIT: one shared bucket per IP means that hammering
+      // sign-in locks the administrator out of their own site. It also throttles for a
+      // different reason — nothing in the OAuth flow is guessable, so this is about not
+      // letting a caller spend our application's quota at discord.com. See the comment on
+      // the exchange-failure branch in src/worker.js.
+      "name": "AUTH_LIMIT",
+      "namespace_id": "1002",
+      "simple": { "limit": 5, "period": 60 }
     }
   ],
   "observability": { "enabled": true },
@@ -37,5 +48,8 @@
   // Preview URLs default to following workers_dev, which would publish a second, public
   // hostname per uploaded version. One environment only, so: off, explicitly.
   "preview_urls": false
-  // Secrets (not stored here): ADMIN_KEY, APP_SECRET — set with `npx wrangler secret put <NAME>`.
+  // Secrets (not stored here): ADMIN_KEY, APP_SECRET, DISCORD_CLIENT_ID,
+  // DISCORD_CLIENT_SECRET, DISCORD_REDIRECT_URI — set with `npx wrangler secret put <NAME>`.
+  // The Discord three are read only by the auth routes, never by secrets(), so a missing
+  // one breaks sign-in and leaves the rest of the site serving.
 }

@@ -3,11 +3,36 @@
 
 import { CATEGORIES, summarize, outlierIds, combine, categoryScores, overall } from './stats.js';
 import { validatePlayerInput } from './players.js';
+import {
+  SESSION_MAX_AGE_SECONDS,
+  sessionCookie,
+  expiredSessionCookie,
+  statePayload,
+  returnPage,
+  authorizeUrl,
+  tokenRequestBody,
+} from './auth.js';
 
 const VERSION = '4.0';
 const MAX_BODY_BYTES = 16 * 1024;
 const PRO_TOKEN_TTL = 30 * 864e5, ADMIN_TOKEN_TTL = 8 * 36e5;
 const PLAYER_COLUMNS = 'id,slug,name,real_name,game,faction,style,form,notes,created_at';
+// Discord's three endpoints. They live here rather than in src/auth.js so that module stays
+// a pile of pure decisions with no host in it — see its header, and the tripwires in
+// test/frontend.test.js that watch src/ for exactly these strings.
+const DISCORD_AUTHORIZE_URL = 'https://discord.com/api/oauth2/authorize';
+const DISCORD_TOKEN_URL = 'https://discord.com/api/oauth2/token';
+const DISCORD_IDENTITY_URL = 'https://discord.com/api/users/@me';
+// Five minutes is the whole life of a state token: long enough to read a consent screen,
+// short enough that a copy left in a browser history or a referrer log is already dead.
+const STATE_TTL = 5 * 60e3;
+// Every way sign-in can fail answers with this one URL. A reason in the query string would
+// be shareable, loggable and visible to the one party that already knows what it did wrong.
+const AUTH_FAILED = '/?page=rate&auth=failed';
+// Discord caps a username and a global name at 32 characters and an avatar hash at 34.
+// These columns are a display cache, so the cap is a sanity bound on a third party's
+// response, not a validation rule.
+const DISCORD_FIELD_MAX = 64;
 const SCORE_COLUMNS = CATEGORIES.join(',');
 
 class HttpError extends Error {
@@ -26,6 +51,26 @@ const json = (status, body) =>
   new Response(JSON.stringify(body), {
     status,
     headers: { 'content-type': 'application/json', 'cache-control': 'no-store', 'x-robots-tag': NOINDEX },
+  });
+
+/**
+ * The one response in this Worker that can carry a `Set-Cookie`.
+ *
+ * `json()` builds its headers inline and has nowhere to put one, and widening it would hang
+ * a cookie parameter off every call site in this file that will never pass one. The auth
+ * routes are the only responses that write a cookie, and two of the three are redirects
+ * rather than JSON at all, so they get their own helper instead.
+ */
+const authResponse = (status, { location, cookie, body } = {}) =>
+  new Response(body ? JSON.stringify(body) : null, {
+    status,
+    headers: {
+      'cache-control': 'no-store',
+      'x-robots-tag': NOINDEX,
+      ...(location ? { location } : {}),
+      ...(cookie ? { 'set-cookie': cookie } : {}),
+      ...(body ? { 'content-type': 'application/json' } : {}),
+    },
   });
 
 export default {
@@ -132,6 +177,8 @@ async function route(request, env, url) {
     return json(401, { error: 'Invalid admin key' });
   }
 
+  if (path.startsWith('/api/auth/')) return authRoute(request, env, method, path, url);
+
   if (path.startsWith('/api/admin/')) {
     const token = await verifyToken(env, (request.headers.get('authorization') || '').replace(/^Bearer /i, ''));
     if (token?.role !== 'admin') return json(403, { error: 'Admin authentication required' });
@@ -139,6 +186,170 @@ async function route(request, env, url) {
   }
 
   return json(404, { error: 'Not found' });
+}
+
+/**
+ * Discord sign-in: authorization-code grant with this Worker as a confidential client, so
+ * no PKCE. Three routes, and `Authorization: Bearer` is untouched by all three — this adds
+ * a cookie path for visitors, it replaces nothing for admins or professionals.
+ */
+async function authRoute(request, env, method, path, url) {
+  if (method === 'GET' && path === '/api/auth/discord/start') {
+    const { clientId, redirectUri } = discordSecrets(env);
+    // The page to come back to is signed, not remembered: there is nowhere to remember it
+    // yet, and a value the browser carries is safe here because returnPage() only ever
+    // answers with a key from its own list. statePayload normalises it before signing, so
+    // a junk ?page= is discarded at the start of the trip rather than the end of it.
+    const state = await signToken(env, statePayload(url.searchParams.get('page'), Date.now(), STATE_TTL));
+    return authResponse(302, {
+      location: authorizeUrl({ base: DISCORD_AUTHORIZE_URL, clientId, redirectUri, state }),
+    });
+  }
+
+  if (method === 'GET' && path === '/api/auth/discord/callback') return discordCallback(request, env, url);
+
+  if (method === 'POST' && path === '/api/auth/logout') {
+    // A route for something that writes nothing, because JavaScript cannot clear an
+    // HttpOnly cookie — only the server that set it can unset it. 200 with the expired
+    // cookie rather than a redirect: the caller is a fetch() that re-renders itself, and
+    // a 302 would make it fetch the index page for a body it throws away.
+    return authResponse(200, { cookie: expiredSessionCookie(), body: { ok: true } });
+  }
+
+  return json(404, { error: 'Not found' });
+}
+
+/**
+ * The Discord credentials, or a 503 — and deliberately **not** part of secrets(env).
+ *
+ * secrets(env) guards every route in this Worker through hmac(), so adding these three to
+ * it would take the public site down the moment one of them was missing from a deploy. A
+ * misconfigured sign-in should break sign-in and nothing else.
+ *
+ * DISCORD_REDIRECT_URI is configuration rather than something derived from the request
+ * origin: Discord matches it byte-for-byte against a registered value, so deriving it means
+ * every origin the app is ever opened at has to be registered in its own right.
+ */
+function discordSecrets(env) {
+  const { DISCORD_CLIENT_ID: clientId, DISCORD_CLIENT_SECRET: clientSecret, DISCORD_REDIRECT_URI: redirectUri } = env;
+  if (!clientId || !clientSecret || !redirectUri) {
+    throw new HttpError(503, 'Sign-in is not configured: set DISCORD_CLIENT_ID, DISCORD_CLIENT_SECRET and DISCORD_REDIRECT_URI');
+  }
+  return { clientId, clientSecret, redirectUri };
+}
+
+/**
+ * The return leg. Ordered so that the cheap refusals happen first: nothing below touches D1
+ * or discord.com until the state has proved it was signed here.
+ *
+ * The Discord access token exists between the exchange and /users/@me and is then dropped.
+ * It is never written to D1 and never put in the session: the app wants to know who someone
+ * is, not to act as them, and a stored credential with no use for it is a liability with no
+ * asset against it.
+ */
+async function discordCallback(request, env, url) {
+  const failed = () => authResponse(302, { location: AUTH_FAILED });
+  const q = url.searchParams;
+
+  // The visitor pressed Cancel on the consent screen (?error=access_denied), or Discord
+  // refused for its own reasons. Checked first, so a declined sign-in costs neither a
+  // signature verification nor a round trip, and so the same refusal covers an error
+  // parameter this code has never heard of.
+  if (q.get('error')) return failed();
+
+  const state = await verifyToken(env, q.get('state'));
+  // `kind` is checked here, at the call site, rather than inside verifyToken. Moving the
+  // check in there for every caller is .scratch/accounts/02-token-kind-discriminator.md,
+  // which merges separately; this route cannot wait for it, because it is the route that
+  // creates the problem — a session token is signed with the same key and would otherwise
+  // verify here as a perfectly good state.
+  if (state?.kind !== 'state') return failed();
+
+  const code = q.get('code');
+  if (!code) return failed();
+
+  const { clientId, clientSecret, redirectUri } = discordSecrets(env);
+  // Form-encoded. The token endpoint does not accept JSON, and the failure mode if you
+  // send it anyway is an unhelpful invalid_request.
+  const exchange = await fetch(DISCORD_TOKEN_URL, {
+    method: 'POST',
+    headers: { 'content-type': 'application/x-www-form-urlencoded' },
+    body: tokenRequestBody({ clientId, clientSecret, code, redirectUri }),
+  });
+  if (!exchange.ok) {
+    // AUTH_LIMIT, and its reason is not the admin login's. There is no guessable secret
+    // anywhere in this flow: `state` is HMAC-SHA256 over APP_SECRET, so forging one means
+    // already holding the secret. What this guards against is amplification — a caller
+    // fetches one legitimate state from /start for free, then replays it here with a
+    // garbage code, and every replay makes this Worker POST to discord.com. Discord rate
+    // limits per application, so a few minutes of that gets our client 429'd and sign-in
+    // stops working for everyone. An availability control, not a credential one. Anyone
+    // moving this later needs that distinction, because the admin login's placement rule
+    // ("never spend budget on a success") was written for the other reason entirely.
+    //
+    // Its own namespace rather than LOGIN_LIMIT's: one shared bucket per IP would mean
+    // that hammering /api/auth/* locks the administrator out of their own site.
+    //
+    // KNOWN LIMIT, stated rather than quietly carried: counting here means the refusal
+    // lands after the outbound POST has already been made, so this caps the response and
+    // not the call it is named for. Capping the call means consulting the limiter in front
+    // of the exchange, which also spends budget on successful sign-ins. Specified this way
+    // in .scratch/accounts/01-discord-oauth-sign-in/04-the-three-auth-routes.md; the
+    // reasoning above is what a change to either placement has to answer to.
+    //
+    // Keyed and failing open exactly as POST /api/admin/login is: the edge sets
+    // CF-Connecting-IP and a client cannot suppress it, and it is absent only under
+    // `wrangler dev`.
+    const ip = request.headers.get('CF-Connecting-IP');
+    if (ip && !(await env.AUTH_LIMIT.limit({ key: ip })).success) {
+      // The one failure that does not redirect. Six failed exchanges from one address
+      // inside a minute is not a person signing in, and a refusal that looks identical to
+      // the thing it is refusing is a refusal nobody can act on.
+      return json(429, { error: 'Too many attempts. Please try again shortly.' });
+    }
+    return failed();
+  }
+
+  const grant = await exchange.json().catch(() => null);
+  if (!grant?.access_token) return failed();
+
+  const identity = await fetch(DISCORD_IDENTITY_URL, {
+    headers: { authorization: `${grant.token_type || 'Bearer'} ${grant.access_token}` },
+  });
+  if (!identity.ok) return failed();
+  const user = await identity.json().catch(() => null);
+  // The snowflake is the identity and the only field this flow cannot do without. It stays
+  // a string from here to the database: 19 digits do not survive a JavaScript number.
+  if (!user?.id) return failed();
+
+  // Upsert on the snowflake, never on the username — that one is mutable and not unique on
+  // Discord's side, and is a display cache here and nothing else. Refreshed on every
+  // sign-in, because this is the only moment the app ever hears about a change to it.
+  await env.DB.prepare(
+    `insert into accounts(discord_id,username,global_name,avatar,last_login_at)
+     values(?,?,?,?,CURRENT_TIMESTAMP)
+     on conflict(discord_id) do update set
+       username=excluded.username,global_name=excluded.global_name,avatar=excluded.avatar,
+       last_login_at=CURRENT_TIMESTAMP`,
+  ).bind(
+    String(user.id),
+    text(user.username, DISCORD_FIELD_MAX),
+    text(user.global_name, DISCORD_FIELD_MAX),
+    text(user.avatar, DISCORD_FIELD_MAX),
+  ).run();
+
+  const token = await signToken(env, {
+    kind: 'session',
+    sub: String(user.id),
+    exp: Date.now() + SESSION_MAX_AGE_SECONDS * 1000,
+  });
+  // Normalised a second time: statePayload already did this before signing, and the value
+  // has been through a browser since. This is the assertion that the return leg is a
+  // navigation inside the app rather than an open redirect.
+  return authResponse(302, {
+    location: `/?page=${returnPage(state.page)}`,
+    cookie: sessionCookie(token),
+  });
 }
 
 async function adminRoute(request, env, method, path) {
