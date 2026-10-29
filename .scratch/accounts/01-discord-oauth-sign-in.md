@@ -97,6 +97,46 @@ A visitor signs in with Discord **on the deployed origin, not just locally**, is
 on return, and signs out again; an Account row exists keyed on the snowflake;
 `ACCOUNTS_ENABLED` is true and the navigation matrix behaves as spec §3 describes.
 
+## Tickets
+
+Broken down on 2026-10-29. They live in
+[`01-discord-oauth-sign-in/`](01-discord-oauth-sign-in/) and land as **one branch, one PR**:
+`ACCOUNTS_ENABLED` stays `false` until the last one, so every intermediate state is invisible
+to a visitor — but the flush in 02 is not invisible, it deletes live rows on deploy, and it
+belongs in the same deploy as the thing that justifies it.
+
+| # | Ticket | Status | Blocked by |
+|---|---|---|---|
+| 01 | [Provision the Discord application](01-discord-oauth-sign-in/01-provision-the-discord-application.md) | ready-for-human | — |
+| 02 | [Accounts schema, the ratings FK, and the flush](01-discord-oauth-sign-in/02-accounts-schema-and-the-flush.md) | ready-for-agent | — |
+| 03 | [The auth seams, and the tests that cover them](01-discord-oauth-sign-in/03-auth-seams-and-their-tests.md) | ready-for-agent | — |
+| 04 | [The three auth routes](01-discord-oauth-sign-in/04-the-three-auth-routes.md) | ready-for-agent | 01, 03 |
+| 05 | [Session-gated rating, and /api/auth/me](01-discord-oauth-sign-in/05-session-gated-rating.md) | ready-for-agent | 02, 04 |
+| 06 | [The signed-in shell](01-discord-oauth-sign-in/06-the-signed-in-shell.md) | ready-for-agent | 05 |
+| 07 | [Make the published promises true, and turn accounts on](01-discord-oauth-sign-in/07-make-the-published-promises-true.md) | ready-for-agent | 06 |
+
+[02-token-kind-discriminator.md](02-token-kind-discriminator.md) merges first and separately.
+
+Decisions taken while breaking this down, none of them recoverable from the tickets alone:
+
+- **No anonymous ratings.** Rating is gated on the session, not merely prompted. Without
+  that, flipping `ACCOUNTS_ENABLED` buys a navigation change and leaves the published
+  medians exactly as attributable as they were.
+- **The legacy ratings are discarded**, which answers
+  [06](06-legacy-ratings-after-accounts.md) and closes it.
+- **30-day session, no revocation.** Accepted knowingly: the terms page says a blocked
+  account cannot sign in, and until [../moderation/02-session-revocation.md](../moderation/02-session-revocation.md)
+  lands that is true only at the next sign-in. A blocked-account check on the write routes
+  closes it later without touching the cookie.
+- **`ratings.account_id` now**, while the table is empty from the flush. This is the
+  cheapest that column will ever be, and terms rule 9 needs it.
+- **The avatar is stored and never rendered.** Rendering it means loading from
+  `cdn.discordapp.com`, which the privacy page says nothing here does.
+- **Rate limiting stays**, on the callback's exchange-failure branch only, and for
+  amplification rather than guessing — there is no guessable secret in this flow. Full
+  reasoning in [04](01-discord-oauth-sign-in/04-the-three-auth-routes.md).
+- **No snowflake age gate** at launch. The signal is free and recomputable at any time.
+
 ## Comments
 
 **2026-10-10 — this ticket has a published promise attached to it.** The privacy page

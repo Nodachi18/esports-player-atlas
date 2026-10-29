@@ -36,3 +36,12 @@ fallback. Decide which, and write the decision down.
 `verifyToken` rejects a token whose kind does not match what the caller asked for, every
 issuing site sets a kind, and a test covers an admin token being offered where a pro token
 is expected.
+
+## Comments
+
+**2026-10-29 — the flag-day question is decided: hard break, no grandfathering.** Taken while
+breaking down [01](01-discord-oauth-sign-in.md). The live database holds **0 professional
+ratings**, so there is plausibly no pro token in circulation at all; grandfathering kind-less
+tokens as `'pro'` would buy a fallback branch that nobody can observe working and that
+somebody has to remember to delete a month later. If a professional is holding a token, they
+re-unlock with the invite code they already have.
