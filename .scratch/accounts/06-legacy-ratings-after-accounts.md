@@ -52,5 +52,8 @@ which flushes `ratings` and `player_stats` in the same migration that creates `a
 and never sees a direct delete from `ratings`, so the cached aggregates would otherwise
 outlive the ratings that produced them and keep rendering on the public site.
 
-**Re-count before that migration lands.** "Discard" was decided against a number, and the
-site is public.
+**Re-counted live on 2026-10-29: 5 community ratings on 5 players** — `barracks`, `boxer`,
+`jaehoon`, `light` and `free`, one each; still 38 players, still 0 professional. Two more
+than the 3 the decision was taken against, which changes nothing: they are the same
+unattributable browser-token hashes. Re-count again if this sits unmerged for long — the
+site is public and the argument is about a number.

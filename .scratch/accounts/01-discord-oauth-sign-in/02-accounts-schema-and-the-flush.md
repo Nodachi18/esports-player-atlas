@@ -1,6 +1,6 @@
 # Accounts schema, the ratings FK, and the flush
 
-Status: ready-for-agent
+Status: resolved
 Part of: [../01-discord-oauth-sign-in.md](../01-discord-oauth-sign-in.md)
 Blocked by: —
 
@@ -58,9 +58,11 @@ CREATE INDEX ratings_account ON ratings(account_id);
   before `wrangler deploy`, so merging this to `main` deletes those rows from production.
   That is intended, and it is why the whole set lands as one PR. **Do not deploy, and do
   not apply this against the remote database.** Local verification only.
-- **Re-check the row count before this lands.** It was 3 community ratings on 3 players,
-  0 professional, last confirmed 2026-10-13. If it has grown meaningfully, stop and say so
-  — "discard" was decided against a number.
+- **Re-check the row count before this lands.** 3 community ratings on 3 players on
+  2026-10-13; **5 on 5 players, 0 professional, re-counted against the live API on
+  2026-10-29**. Growing at roughly a rating a week, so the decision holds — but it is a
+  decision about a number, and if this sits unmerged the number moves. If it has grown
+  meaningfully, stop and say so.
 - **`migrations/0005_player_delete_cascade.sql` does not help here.** Its trigger is
   `AFTER DELETE ON players`; a direct `DELETE FROM ratings` never fires it, which is why
   `player_stats` is flushed explicitly. Leaving it would strand cached aggregates whose

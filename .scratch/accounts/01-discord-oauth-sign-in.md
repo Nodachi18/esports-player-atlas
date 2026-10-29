@@ -108,7 +108,7 @@ belongs in the same deploy as the thing that justifies it.
 | # | Ticket | Status | Blocked by |
 |---|---|---|---|
 | 01 | [Provision the Discord application](01-discord-oauth-sign-in/01-provision-the-discord-application.md) | ready-for-human | — |
-| 02 | [Accounts schema, the ratings FK, and the flush](01-discord-oauth-sign-in/02-accounts-schema-and-the-flush.md) | ready-for-agent | — |
+| 02 | [Accounts schema, the ratings FK, and the flush](01-discord-oauth-sign-in/02-accounts-schema-and-the-flush.md) | **resolved 2026-10-29** | — |
 | 03 | [The auth seams, and the tests that cover them](01-discord-oauth-sign-in/03-auth-seams-and-their-tests.md) | **resolved 2026-10-29** | — |
 | 04 | [The three auth routes](01-discord-oauth-sign-in/04-the-three-auth-routes.md) | ready-for-agent | 01, 03 |
 | 05 | [Session-gated rating, and /api/auth/me](01-discord-oauth-sign-in/05-session-gated-rating.md) | ready-for-agent | 02, 04 |
