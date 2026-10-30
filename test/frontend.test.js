@@ -5,7 +5,11 @@ import { CATEGORIES, panelScores, hasScores, ratingCount, vertex, polygonPoints 
 import { buildRanking, filterPlayers, pageOf, resolveSelection } from '../public/app/ranking.js';
 import { navigation, isReachable, FOOTER_LINKS, VISIBILITY } from '../public/app/nav.js';
 import { stateFromSearch, searchFromState, update, DEFAULT_STATE } from '../public/app/state.js';
-import { footer, helpPage, legalPage, privacyPage, termsPage, TERMS_UPDATED, CONTACT_CARD, CLOUDFLARE_PRIVACY } from '../public/app/views.js';
+import {
+  header, footer, playersPage, playerDetail, leaderboardPage, ratePage, adminPage,
+  helpPage, legalPage, privacyPage, termsPage, authNotice,
+  TERMS_UPDATED, CONTACT_CARD, CLOUDFLARE_PRIVACY, AUTH_NOTICES, DISCORD_START,
+} from '../public/app/views.js';
 import { canDelete, deletePrompt, formMode, formValues, resultFor } from '../public/app/playerForm.js';
 
 const panel = (n, value) => ({
@@ -184,6 +188,125 @@ test('isReachable rejects a stale URL pointing at a hidden page', () => {
   assert.equal(isReachable('players', {}), true);
 });
 
+
+// ---- the signed-in shell ----
+
+const SIGNED_OUT = { accountsEnabled: true, role: null, account: null };
+const BOXER = { username: 'boxer', global_name: 'BoxeR', avatar: 'a_0123456789abcdef', role: 'community' };
+const SIGNED_IN = { accountsEnabled: true, role: 'community', account: BOXER };
+const shell = session => header(navigation(session), 'rate', DEFAULT_STATE, session);
+
+// An anchor, and it has to be one. The authorize step is a 302 to discord.com and only a
+// top-level navigation can perform it: a button wired to fetch() would follow that redirect
+// inside the request and the visitor would never leave the page.
+test('signed out, the header offers a full-page link to the start route', () => {
+  const html = shell(SIGNED_OUT);
+  assert.match(html, new RegExp(`<a class="discord signin" href="${DISCORD_START}">`));
+  assert.equal(DISCORD_START, '/api/auth/discord/start');
+  assert.doesNotMatch(html, /<button[^>]*class="discord"/, 'a fetch cannot do a top-level redirect');
+  // data-page and data-slug are what main.js intercepts; this must fall through to the browser.
+  assert.doesNotMatch(html, new RegExp(`href="${DISCORD_START}"[^>]*data-(?:page|slug)`));
+});
+
+// Naming Discord is the point: a control that silently jumps to another company's domain
+// is the shape a phish has. And there is exactly one of them — the first sign-in is the
+// registration, so a Register button starting the identical redirect would be two names
+// for one thing.
+test('the sign-in control names Discord, and there is only one of it', () => {
+  const html = shell(SIGNED_OUT);
+  assert.match(html, /Sign in with Discord/);
+  assert.equal((html.match(new RegExp(DISCORD_START, 'g')) || []).length, 1);
+});
+
+test('signed in, the header shows the person and a way out, and no avatar at all', () => {
+  const html = shell(SIGNED_IN);
+  assert.match(html, /BoxeR/);
+  assert.match(html, /data-signout/);
+  assert.doesNotMatch(html, /Sign in with Discord/);
+  assert.doesNotMatch(html, new RegExp(DISCORD_START));
+  // The hash is stored and never rendered: an <img> built from it loads from
+  // cdn.discordapp.com, and the privacy page says nothing here loads from anywhere else.
+  assert.doesNotMatch(html, /a_0123456789abcdef/, 'the avatar hash reached the markup');
+  assert.doesNotMatch(html, /discordapp/i);
+});
+
+test('an account with no display name is shown by its handle rather than blank', () => {
+  const session = { accountsEnabled: true, role: 'community', account: { username: 'boxer', global_name: null } };
+  assert.match(shell(session), /boxer/);
+});
+
+// Until 08 flips ACCOUNTS_ENABLED, nothing built here is reachable by a visitor: the
+// control still reads as planned and points nowhere.
+test('with accounts off the header still says planned and links nothing', () => {
+  const html = header(navigation({}), 'players', DEFAULT_STATE, { accountsEnabled: false });
+  assert.match(html, /planned/);
+  assert.doesNotMatch(html, /\/api\/auth/);
+  assert.doesNotMatch(html, /data-signout/);
+});
+
+// The Account page is in RETURN_PAGES (src/auth.js) on purpose, although it renders as
+// `planned` — the value only becomes producible once that page exists. What keeps it
+// harmless today is this: signed out, the key is not navigable at all, so render() bounces
+// a typed ?page=account before a sign-in could ever be started from there.
+test('account is unreachable to a signed-out visitor even with accounts on', () => {
+  assert.equal(isReachable('account', { accountsEnabled: true }), false);
+  assert.equal(isReachable('account', { accountsEnabled: true, role: 'community' }), true);
+});
+
+const RATED = { ...profile(), real_name: 'Lim Yo Hwan', game: 'StarCraft: Brood War' };
+
+// Shown, not replaced. A visitor cannot weigh signing in against what is being asked of
+// them without seeing the five sliders and the panel choice they are signing in to use.
+test('signed out with accounts on, the rate form renders disabled behind a prompt', () => {
+  const html = ratePage(RATED, null, SIGNED_OUT);
+  assert.match(html, /Sign in with Discord to rate/);
+  assert.match(html, new RegExp(`href="${DISCORD_START}"`));
+  for (const category of CATEGORIES) {
+    assert.match(html, new RegExp(`id="r-${category}"[^>]*disabled`), `${category} is still live`);
+  }
+  assert.match(html, /id="ratepanel"[^>]*disabled/);
+  assert.match(html, /type="submit"[^>]*disabled/);
+});
+
+test('signed in, the rate form is live and asks for nothing', () => {
+  const html = ratePage(RATED, null, SIGNED_IN);
+  assert.doesNotMatch(html, /disabled/);
+  assert.doesNotMatch(html, /Sign in with Discord/);
+});
+
+test('with accounts off the rate form is exactly what it was', () => {
+  assert.doesNotMatch(ratePage(RATED, null, { accountsEnabled: false }), /disabled|Sign in with Discord/);
+  assert.doesNotMatch(ratePage(RATED, null), /disabled/, 'the session argument is optional');
+});
+
+// Two reasons, two lines. The limiter in 04 sits in front of the token exchange, so it
+// counts successful sign-ins too and a whole office behind one address can trip it while
+// doing nothing wrong — "wait a minute" is actionable, "sign-in failed" would send them
+// straight back to retry, which is the one thing that keeps it shut.
+test('each OAuth return reason renders its own single line', () => {
+  assert.match(authNotice('failed'), /Sign-in did not complete/);
+  assert.match(authNotice('busy'), /in the last minute/);
+  assert.notEqual(AUTH_NOTICES.failed, AUTH_NOTICES.busy);
+  assert.equal((authNotice('failed').match(/<p/g) || []).length, 1, 'one line, not a page');
+});
+
+test('a reason nobody sent renders nothing, inherited keys included', () => {
+  assert.equal(authNotice(''), '');
+  assert.equal(authNotice(undefined), '');
+  assert.equal(authNotice('nope'), '');
+  assert.equal(authNotice('constructor'), '', '?auth= is attacker-chosen; the lookup is own-keys only');
+  assert.equal(authNotice('toString'), '');
+});
+
+// render() rewrites the address bar from searchFromState(), which has never heard of
+// `auth`. That is the whole of "it does not survive a reload": the parameter is read once
+// at startup and is gone from the URL by the end of the first paint.
+test('the sign-in notice cannot come back on a reload', () => {
+  const state = stateFromSearch('?page=rate&auth=failed');
+  assert.equal(state.page, 'rate', 'the return leg still lands on Rate');
+  assert.doesNotMatch(searchFromState(state), /auth/);
+});
+
 // ---- state ----
 
 test('stateFromSearch falls back to defaults for junk values', () => {
@@ -289,6 +412,11 @@ test('nothing from the contact card is mirrored into the page', () => {
   assert.deepEqual(outbound, [`href="${CONTACT_CARD}"`], 'exactly one outbound link');
 });
 
+// Prose wraps across source lines, so match against collapsed whitespace rather than
+// contorting the page to keep an assertion on one line. Up here because the privacy,
+// help and terms pages all want it.
+const flat = html => html.replace(/\s+/g, ' ');
+
 // ---- privacy statement ----
 //
 // These pin the claims that go stale silently. A privacy page that quietly stops matching
@@ -311,32 +439,65 @@ test('every outbound link on the privacy page is nofollow', () => {
   }
 });
 
+// Discord joins the list because signing in is a round trip through discord.com: a visitor
+// who signs in reaches it, which is the same test Cloudflare passes. Nothing is loaded from
+// either — these are links a reader follows.
 test('the only third parties disclosed are the only ones linked', () => {
   const hosts = new Set((privacyPage(DEFAULT_STATE).match(/href="https:\/\/[^/"]+/g) || [])
     .map(href => href.slice('href="https://'.length)));
-  assert.deepEqual([...hosts].sort(), ['www.cloudflare.com', 'www.falkenstein-harz.de']);
+  assert.deepEqual([...hosts].sort(),
+    ['discord.com', 'www.cloudflare.com', 'www.falkenstein-harz.de']);
 });
 
 test('the rating section answers the reader, then stops', () => {
   const html = privacyPage(DEFAULT_STATE);
   assert.match(html, /No name, no email address, no IP address/);
   assert.match(html, /one-way hash/);
-  assert.match(html, /cannot\s+be turned back into you/);
+  // "It cannot be turned back into you" was true of everybody while the hash was made from
+  // a token the browser minted. It is made from a Discord account id now and this site
+  // holds that id, so the page has to say who can and who cannot — the sentence that was
+  // reassuring is the sentence that went false.
+  assert.doesNotMatch(html, /cannot\s+be turned back into you/);
+  assert.match(html, /attached to your account/);
   // How the one-rating-per-panel rule is enforced is the operator's mechanism, not the
   // reader's exposure. It belongs in 03, not on the page.
   assert.doesNotMatch(html, /clearing browser storage|rate the same player again/i);
+});
+
+// The page said "No cookies" and a session cookie ships, which is the plainest kind of
+// false a privacy page can be. What replaces it is a sentence, not a banner: § 25(2) TDDDG
+// exempts storage strictly necessary for a service the visitor asked for, and a cookie
+// that does nothing but keep them signed in is that. The citation stays off the page — see
+// the test above that keeps "DDG" off it.
+test('the privacy page names the session cookie and asks for no consent', () => {
+  const html = flat(privacyPage(DEFAULT_STATE));
+  assert.doesNotMatch(html, /No cookies/i, 'a session cookie ships; that sentence was false');
+  assert.match(html, /One cookie, set when you sign in/);
+  assert.match(html, /30 days or until you sign out/, 'the lifetime matches SESSION_MAX_AGE_SECONDS');
+  assert.match(html, /no banner asking you to accept it/);
+  assert.match(html, /no analytics, no advertising, no tracking pixels/);
+  // The rating token is gone: nothing in the browser identifies a rater any more.
+  assert.doesNotMatch(html, /rating token/i);
 });
 
 test('the privacy page does not claim the legal notice exemption covers it', () => {
   assert.doesNotMatch(privacyPage(DEFAULT_STATE), /DDG/, '§ 5 DDG scopes on commerce; the GDPR does not');
 });
 
-test('the Discord section is marked planned and says nothing happens yet', () => {
-  const html = privacyPage(DEFAULT_STATE);
-  const heading = html.match(/<h2 data-planned="1">[^]*?<\/h2>/)[0];
-  assert.match(heading, /Discord/);
-  assert.match(heading, /<span class="tag">planned<\/span>/, 'planned means not built yet, and is said that way');
-  assert.match(html, /None of this happens yet/);
+// It shipped marked `planned` so that it would read as an obvious lie the moment sign-in
+// landed. Sign-in has landed, so it is a description now: present tense, no tag, and the
+// question it left open — what becomes of ratings cast before accounts — is answered,
+// because migrations/0007_accounts.sql answered it by deleting them.
+test('the Discord section describes what happens, and nothing is marked planned', () => {
+  const html = flat(privacyPage(DEFAULT_STATE));
+  assert.doesNotMatch(html, /planned|data-planned/, 'sign-in exists; a planned tag here would be the lie');
+  assert.doesNotMatch(html, /None of this happens yet|not yet decided/);
+  assert.match(html, /<h2>Signing in with Discord<\/h2>/);
+  assert.match(html, /Never your email address/);
+  assert.match(html, /attributable to one identifiable person/);
+  assert.match(html, /Every rating cast before accounts existed has been deleted/);
+  // The avatar is stored and nothing renders it, which is what keeps the claim below true.
+  assert.match(html, /never shown here/);
 });
 
 // The page no longer discloses a third party because there no longer is one. Re-adding a
@@ -354,6 +515,78 @@ test('nothing in the shipped front end loads from another origin', async () => {
     const urls = source.match(/url\(\s*['"]?https?:/gi) || [];
     assert.deepEqual([...remote, ...urls], [], `remote reference in ${['index.html', ...appFiles][i]}`);
   }
+});
+
+// The privacy page now states, live on the site, that the resettable rating token is gone
+// and that a rating belongs to an account. Nothing else checks that. A single
+// `localStorage.voterAtlas = …` put back anywhere under public/app/ makes that page false
+// about what sits in the reader's browser, and it would be put back by anyone restoring a
+// "works signed out" rating path without reading why it went. Same shape as the grep
+// above, and for the same reason: a published claim with no other guard.
+test('nothing in the front end mints a browser-local rating identity', async () => {
+  const { readFile, readdir } = await import('node:fs/promises');
+  // Comments are stripped first: the rule is written down in views.js, beside the sentence
+  // on the privacy page that depends on it, and a guard that forbids explaining itself
+  // would be removed by the next person who needed to say why.
+  const code = source => source.replace(/\/\*[\s\S]*?\*\//g, ' ').replace(/^\s*\/\/.*$/gm, '');
+  const appFiles = await readdir(new URL('../public/app', import.meta.url));
+
+  for (const name of appFiles.filter(f => f.endsWith('.js'))) {
+    const source = code(await readFile(new URL(`../public/app/${name}`, import.meta.url), 'utf8'));
+    assert.doesNotMatch(source, /voterAtlas/, `${name} mints the rating token the privacy page says is gone`);
+    assert.doesNotMatch(source, /\bvoterId\b/, `${name} still has the function that minted it`);
+    assert.doesNotMatch(source, /\bvoter\s*[:=]/, `${name} still names a rater of its own choosing`);
+  }
+});
+
+// The grep above reads source files, so a URL assembled at runtime from a database value
+// walks straight past it — and the stored Discord avatar is the first value that could:
+// `<img src="https://cdn.discordapp.com/avatars/${id}/${avatar}.png">` is a remote load
+// with no remote URL anywhere in src/. The views are pure string functions, so the honest
+// check is to render them with that value in every field and read the output.
+//
+// Anchors are not loads. The privacy page links Cloudflare and Discord on purpose; a link
+// a reader may follow is a disclosure, a resource the browser fetches is the thing this
+// forbids.
+test('nothing a rendered view fetches comes from another origin', () => {
+  const avatar = 'a_0123456789abcdef0123456789abcdef';
+  const player = {
+    ...profile(),
+    slug: 'p', name: avatar, real_name: avatar, game: avatar, faction: avatar,
+    style: avatar, form: avatar, notes: avatar, ratings: 1, value: 50, rank: 1,
+    avatar, image: avatar,
+  };
+  const session = {
+    accountsEnabled: true, adminKey: true, role: 'community',
+    account: { id: '1', discord_id: '1', username: avatar, global_name: avatar, avatar },
+  };
+  const state = { ...DEFAULT_STATE, query: avatar, player: 'p' };
+  const ctx = {
+    stats: { totals: {} }, ratings: null, roster: [player], filtered: [player],
+    selected: player, draft: null, games: [{ game: avatar }], guard: null, query: '',
+    saving: false,
+  };
+
+  const html = [
+    header(navigation(session), 'players', state, session),
+    footer(state, session),
+    playersPage([player], player, state),
+    playerDetail(player, state),
+    leaderboardPage([player], state),
+    ratePage(player, { tone: 'ok', text: avatar }),
+    adminPage(ctx),
+    helpPage(state), legalPage(), privacyPage(state), termsPage(state),
+  ].join('\n');
+
+  const fetched = [
+    ...(html.match(/\b(?:src|srcset|poster|data|formaction|action)\s*=\s*"[^"]*"/gi) || []),
+    ...(html.match(/<link\b[^>]*>/gi) || []),
+    ...(html.match(/url\(\s*['"]?[^)]*/gi) || []),
+  ];
+  for (const ref of fetched) {
+    assert.doesNotMatch(ref, /(?:https?:)?\/\//i, `a view renders a remote fetch: ${ref}`);
+  }
+  assert.doesNotMatch(html, /discordapp/i, 'a Discord CDN URL reached the rendered page');
 });
 
 test('every font face the stylesheet declares is actually in the repo', async () => {
@@ -414,10 +647,6 @@ test('the declared og:image dimensions match the file on disk', async () => {
 
 // ---- help ----
 
-// Prose wraps across source lines, so match against collapsed whitespace rather than
-// contorting the page to keep an assertion on one line.
-const flat = html => html.replace(/\s+/g, ' ');
-
 test('Help asks four questions, each visually separated', () => {
   const html = helpPage(DEFAULT_STATE);
   const blocks = html.match(/<div class="qa">/g) || [];
@@ -457,6 +686,12 @@ test('Help says becoming a professional is not currently possible', () => {
   const html = flat(helpPage(DEFAULT_STATE));
   assert.match(html, /At the moment, nobody can/);
   assert.match(html, /no way to ask for an invite or to use one/);
+  // What changed when sign-in landed is the reason the panel is shut. It was "signing in
+  // is planned"; it is now "nobody has built the promotion", and promotion is
+  // .scratch/accounts/04-promote-account-to-professional.md. Sign-in is not the answer to
+  // this question any more, and saying it is planned is simply false.
+  assert.doesNotMatch(html, /planned/i, 'sign-in exists; the Help page may not say otherwise');
+  assert.match(html, /Signing in with Discord is not that route/);
 });
 
 // ---- the admin player form ----
@@ -727,21 +962,28 @@ test('the account rules are stated as rules, not as plans', () => {
   assert.match(section, /A blocked account cannot sign in/);
 });
 
-// The tripwire. This page promises things the code does not do yet, so it has to be re-read
-// the moment the code catches up — and a note nobody opens is not a mechanism. This fails
-// as soon as Discord auth lands in src/, with the four claims that have to still be true.
-// Fixing it means checking the page, then deleting this test.
-test('sign-in has not landed yet — when it does, re-read the terms page', async () => {
+// The sign-in tripwire fired, the four claims were re-read against the code on
+// 30 October 2026, and it is deleted — it had one job and did it. Three of the four are
+// descriptions now: the scope is `identify` (src/auth.js, and the test below keeps it),
+// the page names everything 0007_accounts.sql stores, and one account per person is a rule
+// rather than a mechanism and always was.
+//
+// The fourth is still a promise: nothing in this repository can block an account, so
+// "a blocked account cannot sign in, and the ratings it has cast are removed from the
+// site" is a rule published ahead of its code, exactly as the account rules were. Same
+// situation, so the same mechanism — this fails the moment blocking appears in src/, with
+// what the page has already committed it to.
+test('blocking has not landed yet — when it does, re-read rules 8 and 9', async () => {
   const { readFile, readdir } = await import('node:fs/promises');
   const files = (await readdir(new URL('../src', import.meta.url))).filter(f => f.endsWith('.js'));
   for (const file of files) {
     const source = await readFile(new URL(`../src/${file}`, import.meta.url), 'utf8');
-    assert.doesNotMatch(source, /auth\/discord|discord\.com\/api\/oauth2/i,
-      `${file}: Discord sign-in has landed. The terms page already states, in the present ` +
-      'tense, that the scope asks for no email address, that the site holds only the account ' +
-      'id, username and avatar, that one account per person is the rule, and that a blocked ' +
-      "account cannot sign in and its ratings leave the site. Confirm all four, then delete " +
-      'this test.');
+    assert.doesNotMatch(source, /blocked_at|is_blocked|blockAccount|\bblockedAccount/i,
+      `${file}: blocking has landed. The terms page already states, in the present tense, ` +
+      'that a blocked account cannot sign in and that the ratings it has cast are removed ' +
+      'from the site. "Removed" means excluded from the published scores, not deleted — ' +
+      'content-pages/05 decision 2, so that an unblock can restore them and a strike rule ' +
+      'stays possible. Confirm both, then delete this test.');
   }
 });
 

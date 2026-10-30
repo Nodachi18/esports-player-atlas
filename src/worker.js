@@ -3,11 +3,39 @@
 
 import { CATEGORIES, summarize, outlierIds, combine, categoryScores, overall } from './stats.js';
 import { validatePlayerInput } from './players.js';
+import {
+  SESSION_COOKIE,
+  SESSION_MAX_AGE_SECONDS,
+  readCookie,
+  sessionCookie,
+  expiredSessionCookie,
+  statePayload,
+  returnPage,
+  authorizeUrl,
+  tokenRequestBody,
+} from './auth.js';
 
 const VERSION = '4.0';
 const MAX_BODY_BYTES = 16 * 1024;
 const PRO_TOKEN_TTL = 30 * 864e5, ADMIN_TOKEN_TTL = 8 * 36e5;
 const PLAYER_COLUMNS = 'id,slug,name,real_name,game,faction,style,form,notes,created_at';
+// Discord's three endpoints. They live here rather than in src/auth.js so that module stays
+// a pile of pure decisions with no host in it — see its header, and the tripwires in
+// test/frontend.test.js that watch src/ for exactly these strings.
+const DISCORD_AUTHORIZE_URL = 'https://discord.com/api/oauth2/authorize';
+const DISCORD_TOKEN_URL = 'https://discord.com/api/oauth2/token';
+const DISCORD_IDENTITY_URL = 'https://discord.com/api/users/@me';
+// Five minutes is the whole life of a state token: long enough to read a consent screen,
+// short enough that a copy left in a browser history or a referrer log is already dead.
+const STATE_TTL = 5 * 60e3;
+// Every way sign-in can fail answers with this one URL. A reason in the query string would
+// be shareable, loggable and visible to the one party that already knows what it did wrong.
+const AUTH_FAILED = '/?page=rate&auth=failed';
+const AUTH_BUSY = '/?page=rate&auth=busy';
+// Discord caps a username and a global name at 32 characters and an avatar hash at 34.
+// These columns are a display cache, so the cap is a sanity bound on a third party's
+// response, not a validation rule.
+const DISCORD_FIELD_MAX = 64;
 const SCORE_COLUMNS = CATEGORIES.join(',');
 
 class HttpError extends Error {
@@ -26,6 +54,26 @@ const json = (status, body) =>
   new Response(JSON.stringify(body), {
     status,
     headers: { 'content-type': 'application/json', 'cache-control': 'no-store', 'x-robots-tag': NOINDEX },
+  });
+
+/**
+ * The one response in this Worker that can carry a `Set-Cookie`.
+ *
+ * `json()` builds its headers inline and has nowhere to put one, and widening it would hang
+ * a cookie parameter off every call site in this file that will never pass one. The auth
+ * routes are the only responses that write a cookie, and two of the three are redirects
+ * rather than JSON at all, so they get their own helper instead.
+ */
+const authResponse = (status, { location, cookie, body } = {}) =>
+  new Response(body ? JSON.stringify(body) : null, {
+    status,
+    headers: {
+      'cache-control': 'no-store',
+      'x-robots-tag': NOINDEX,
+      ...(location ? { location } : {}),
+      ...(cookie ? { 'set-cookie': cookie } : {}),
+      ...(body ? { 'content-type': 'application/json' } : {}),
+    },
   });
 
 export default {
@@ -110,7 +158,9 @@ async function route(request, env, url) {
     return json(200, { token: await signToken(env, { role: 'pro', invite: invite.id, exp: Date.now() + PRO_TOKEN_TTL }) });
   }
 
-  if (method === 'POST' && path === '/api/ratings') return submitRating(env, await readJson(request));
+  // The request itself goes through, not only its body: the community panel is identified
+  // by the session cookie now, and a parsed body has no headers on it.
+  if (method === 'POST' && path === '/api/ratings') return submitRating(request, env, await readJson(request));
 
   if (method === 'POST' && path === '/api/admin/login') {
     const { key } = await readJson(request);
@@ -132,6 +182,8 @@ async function route(request, env, url) {
     return json(401, { error: 'Invalid admin key' });
   }
 
+  if (path.startsWith('/api/auth/')) return authRoute(request, env, method, path, url);
+
   if (path.startsWith('/api/admin/')) {
     const token = await verifyToken(env, (request.headers.get('authorization') || '').replace(/^Bearer /i, ''));
     if (token?.role !== 'admin') return json(403, { error: 'Admin authentication required' });
@@ -139,6 +191,214 @@ async function route(request, env, url) {
   }
 
   return json(404, { error: 'Not found' });
+}
+
+/**
+ * Discord sign-in: authorization-code grant with this Worker as a confidential client, so
+ * no PKCE. Three routes, and `Authorization: Bearer` is untouched by all three — this adds
+ * a cookie path for visitors, it replaces nothing for admins or professionals.
+ */
+async function authRoute(request, env, method, path, url) {
+  if (method === 'GET' && path === '/api/auth/discord/start') {
+    const { clientId, redirectUri } = discordSecrets(env);
+    // The page to come back to is signed, not remembered: there is nowhere to remember it
+    // yet, and a value the browser carries is safe here because returnPage() only ever
+    // answers with a key from its own list. statePayload normalises it before signing, so
+    // a junk ?page= is discarded at the start of the trip rather than the end of it.
+    const state = await signToken(env, statePayload(url.searchParams.get('page'), Date.now(), STATE_TTL));
+    return authResponse(302, {
+      location: authorizeUrl({ base: DISCORD_AUTHORIZE_URL, clientId, redirectUri, state }),
+    });
+  }
+
+  if (method === 'GET' && path === '/api/auth/me') {
+    // 200 in both states, never 401. This is the probe every page load makes to decide
+    // which shell to draw; a visitor who has simply not signed in has not failed at
+    // anything, and an error status on the ordinary case would be a lie told on every
+    // first visit — and one the client would have to special-case back into a null.
+    const account = await sessionAccount(request, env);
+    // Three fields, chosen by what the shell renders. The snowflake is the identity and
+    // stays server-side; the avatar is stored and deliberately never rendered (loading it
+    // means a request to cdn.discordapp.com, which the privacy page says nothing here
+    // does); `exp` would tell a page something it cannot act on, since it cannot read the
+    // cookie it would be describing.
+    return json(200, {
+      account: account
+        ? { username: account.username, global_name: account.global_name, role: account.role }
+        : null,
+    });
+  }
+
+  if (method === 'GET' && path === '/api/auth/discord/callback') return discordCallback(request, env, url);
+
+  if (method === 'POST' && path === '/api/auth/logout') {
+    // A route for something that writes nothing, because JavaScript cannot clear an
+    // HttpOnly cookie — only the server that set it can unset it. 200 with the expired
+    // cookie rather than a redirect: the caller is a fetch() that re-renders itself, and
+    // a 302 would make it fetch the index page for a body it throws away.
+    return authResponse(200, { cookie: expiredSessionCookie(), body: { ok: true } });
+  }
+
+  return json(404, { error: 'Not found' });
+}
+
+/**
+ * The signed-in account row, or `null` — the one place a session cookie turns into an
+ * identity.
+ *
+ * `Authorization: Bearer` is not consulted here and is not affected by this: admin routes
+ * and the professional rating path keep reading the header exactly as they did. This adds
+ * a second way to be somebody, it does not replace the first.
+ *
+ * `kind` is checked here, at the call site, for the same reason discordCallback checks it:
+ * every token this Worker issues is signed with the same key, so a state token handed back
+ * as a cookie verifies perfectly well — and `/api/auth/discord/start` hands one to anybody
+ * who asks. It carries no `sub`, which is why the second half of the condition is not
+ * redundant: without it the lookup would run on `undefined`. Moving the check inside
+ * verifyToken for every caller is .scratch/accounts/02-token-kind-discriminator.md, which
+ * merges separately.
+ *
+ * The row is read rather than trusted from the token: the token carries a snowflake and
+ * nothing else, while `account_id` and `role` live in the database, and a row that has
+ * since been deleted has to come back as signed out rather than as a dangling id.
+ */
+async function sessionAccount(request, env) {
+  const token = await verifyToken(env, readCookie(request.headers.get('cookie'), SESSION_COOKIE));
+  if (token?.kind !== 'session' || !token.sub) return null;
+  return env.DB.prepare('select id,discord_id,username,global_name,role from accounts where discord_id=?')
+    .bind(String(token.sub)).first();
+}
+
+/**
+ * The Discord credentials, or a 503 — and deliberately **not** part of secrets(env).
+ *
+ * secrets(env) guards every route in this Worker through hmac(), so adding these three to
+ * it would take the public site down the moment one of them was missing from a deploy. A
+ * misconfigured sign-in should break sign-in and nothing else.
+ *
+ * DISCORD_REDIRECT_URI is configuration rather than something derived from the request
+ * origin: Discord matches it byte-for-byte against a registered value, so deriving it means
+ * every origin the app is ever opened at has to be registered in its own right.
+ */
+function discordSecrets(env) {
+  const { DISCORD_CLIENT_ID: clientId, DISCORD_CLIENT_SECRET: clientSecret, DISCORD_REDIRECT_URI: redirectUri } = env;
+  if (!clientId || !clientSecret || !redirectUri) {
+    throw new HttpError(503, 'Sign-in is not configured: set DISCORD_CLIENT_ID, DISCORD_CLIENT_SECRET and DISCORD_REDIRECT_URI');
+  }
+  return { clientId, clientSecret, redirectUri };
+}
+
+/**
+ * The return leg. Ordered so that the cheap refusals happen first: nothing below touches D1
+ * or discord.com until the state has proved it was signed here.
+ *
+ * The Discord access token exists between the exchange and /users/@me and is then dropped.
+ * It is never written to D1 and never put in the session: the app wants to know who someone
+ * is, not to act as them, and a stored credential with no use for it is a liability with no
+ * asset against it.
+ */
+async function discordCallback(request, env, url) {
+  const failed = () => authResponse(302, { location: AUTH_FAILED });
+  const q = url.searchParams;
+
+  // The visitor pressed Cancel on the consent screen (?error=access_denied), or Discord
+  // refused for its own reasons. Checked first, so a declined sign-in costs neither a
+  // signature verification nor a round trip, and so the same refusal covers an error
+  // parameter this code has never heard of.
+  if (q.get('error')) return failed();
+
+  const state = await verifyToken(env, q.get('state'));
+  // `kind` is checked here, at the call site, rather than inside verifyToken. Moving the
+  // check in there for every caller is .scratch/accounts/02-token-kind-discriminator.md,
+  // which merges separately; this route cannot wait for it, because it is the route that
+  // creates the problem — a session token is signed with the same key and would otherwise
+  // verify here as a perfectly good state.
+  if (state?.kind !== 'state') return failed();
+
+  const code = q.get('code');
+  if (!code) return failed();
+
+  // AUTH_LIMIT, consulted *before* the exchange, and its reason is not the admin login's.
+  // There is no guessable secret anywhere in this flow: `state` is HMAC-SHA256 over
+  // APP_SECRET, so forging one means already holding the secret. What this guards against
+  // is amplification — a caller fetches one legitimate state from /start for free, then
+  // replays it here with a garbage code, and every replay makes this Worker POST to
+  // discord.com. Discord rate limits per application, so a few minutes of that gets our
+  // client 429'd and sign-in stops working for everyone. An availability control, not a
+  // credential one.
+  //
+  // That is also why it cannot sit in the failure branch, where it was first written. The
+  // admin login's rule — never spend budget on a success — protects a guessable secret, and
+  // there the call being counted is local. Here the call *is* the thing being protected, so
+  // counting after it has already gone out caps the response and not the amplification. The
+  // cost of getting it right is that a successful sign-in spends budget too; a person signs
+  // in once, so the only caller that notices is a whole shared address at once, which is
+  // what the budget of 10/60s is sized for.
+  //
+  // Its own namespace rather than LOGIN_LIMIT's: one shared bucket per IP would mean that
+  // hammering /api/auth/* locks the administrator out of their own site.
+  //
+  // Keyed and failing open exactly as POST /api/admin/login is: the edge sets
+  // CF-Connecting-IP and a client cannot suppress it, and it is absent only under
+  // `wrangler dev`.
+  const ip = request.headers.get('CF-Connecting-IP');
+  if (ip && !(await env.AUTH_LIMIT.limit({ key: ip })).success) {
+    // Its own parameter rather than auth=failed, because this one is now reachable by
+    // somebody doing nothing wrong — everyone behind one address trying to sign in at
+    // once — and "try again in a minute" is actionable where "sign-in failed" is not.
+    return authResponse(302, { location: AUTH_BUSY });
+  }
+
+  const { clientId, clientSecret, redirectUri } = discordSecrets(env);
+  // Form-encoded. The token endpoint does not accept JSON, and the failure mode if you
+  // send it anyway is an unhelpful invalid_request.
+  const exchange = await fetch(DISCORD_TOKEN_URL, {
+    method: 'POST',
+    headers: { 'content-type': 'application/x-www-form-urlencoded' },
+    body: tokenRequestBody({ clientId, clientSecret, code, redirectUri }),
+  });
+  if (!exchange.ok) return failed();
+
+  const grant = await exchange.json().catch(() => null);
+  if (!grant?.access_token) return failed();
+
+  const identity = await fetch(DISCORD_IDENTITY_URL, {
+    headers: { authorization: `${grant.token_type || 'Bearer'} ${grant.access_token}` },
+  });
+  if (!identity.ok) return failed();
+  const user = await identity.json().catch(() => null);
+  // The snowflake is the identity and the only field this flow cannot do without. It stays
+  // a string from here to the database: 19 digits do not survive a JavaScript number.
+  if (!user?.id) return failed();
+
+  // Upsert on the snowflake, never on the username — that one is mutable and not unique on
+  // Discord's side, and is a display cache here and nothing else. Refreshed on every
+  // sign-in, because this is the only moment the app ever hears about a change to it.
+  await env.DB.prepare(
+    `insert into accounts(discord_id,username,global_name,avatar,last_login_at)
+     values(?,?,?,?,CURRENT_TIMESTAMP)
+     on conflict(discord_id) do update set
+       username=excluded.username,global_name=excluded.global_name,avatar=excluded.avatar,
+       last_login_at=CURRENT_TIMESTAMP`,
+  ).bind(
+    String(user.id),
+    text(user.username, DISCORD_FIELD_MAX),
+    text(user.global_name, DISCORD_FIELD_MAX),
+    text(user.avatar, DISCORD_FIELD_MAX),
+  ).run();
+
+  const token = await signToken(env, {
+    kind: 'session',
+    sub: String(user.id),
+    exp: Date.now() + SESSION_MAX_AGE_SECONDS * 1000,
+  });
+  // Normalised a second time: statePayload already did this before signing, and the value
+  // has been through a browser since. This is the assertion that the return leg is a
+  // navigation inside the app rather than an open redirect.
+  return authResponse(302, {
+    location: `/?page=${returnPage(state.page)}`,
+    cookie: sessionCookie(token),
+  });
 }
 
 async function adminRoute(request, env, method, path) {
@@ -277,29 +537,56 @@ async function deletePlayer(db, slug) {
   return json(200, { slug, ratings: count.results[0].n });
 }
 
-async function submitRating(env, b) {
+/**
+ * There are no anonymous ratings. The community panel is the session cookie and nothing
+ * else — no body field names the rater any more, and there is no fallback to one, because
+ * a fallback is the whole defect: a browser token resets in two clicks, so a published
+ * median built on one is decoration.
+ *
+ * The professional panel is untouched, bearer token and all. It has to be: nothing in this
+ * repository can make an account professional until
+ * .scratch/accounts/04-promote-account-to-professional.md, so gating it on a session now
+ * would leave no route at all to a professional rating.
+ *
+ * `voter_hash` is still what `UNIQUE (player_id, panel, voter_hash)` enforces one rating
+ * per player per panel on, and the 409 below is unchanged. `account_id` is written beside
+ * it rather than instead of it: terms rule 9 requires a blocked account's ratings to leave
+ * the published scores, and the moderation ticket that does that wants an index to find
+ * them by, not a hash it has to recompute from an identity it holds.
+ *
+ * The two prefixes are two namespaces on purpose — `account:` never collides with the
+ * legacy `community:`, which matters not at all now that 0007 emptied the table, and would
+ * have mattered if it had not.
+ */
+async function submitRating(request, env, b) {
   const db = env.DB;
   const player = await db.prepare('select id,slug from players where slug=? and active=1').bind(String(b.player || '')).first();
   if (!player) return json(404, { error: 'Player not found' });
 
   const panel = b.panel === 'professional' ? 'professional' : 'community';
-  let voterHash;
+  let voterHash, accountId = null;
   if (panel === 'professional') {
     const token = await verifyToken(env, b.token);
     if (token?.role !== 'pro') return json(401, { error: 'Professional access required' });
     voterHash = await sha256Hex('pro:' + token.invite);
   } else {
-    const voter = String(b.voter || '');
-    if (voter.length < 20 || voter.length > 200) return json(400, { error: 'Missing voter token' });
-    voterHash = await sha256Hex('community:' + voter);
+    // SameSite=Lax is what makes this safe to accept on a cookie alone: it excludes
+    // cross-site fetch(), so a POST from anywhere but this origin arrives without one.
+    const account = await sessionAccount(request, env);
+    if (!account) return json(401, { error: 'Sign in to rate' });
+    // The snowflake, not the row id. It is the identity Discord guarantees, it is stable
+    // across a row being deleted and recreated, and it is the value a hash has to be
+    // reproducible from later.
+    voterHash = await sha256Hex('account:' + account.discord_id);
+    accountId = account.id;
   }
 
   const scores = CATEGORIES.map(c => Number(b[c]));
   if (scores.some(x => !Number.isInteger(x) || x < 0 || x > 100)) return json(400, { error: 'Scores must be 0-100 integers' });
 
   try {
-    await db.prepare(`insert into ratings(player_id,panel,voter_hash,${SCORE_COLUMNS}) values(?,?,?,?,?,?,?,?)`)
-      .bind(player.id, panel, voterHash, ...scores).run();
+    await db.prepare(`insert into ratings(player_id,panel,voter_hash,account_id,${SCORE_COLUMNS}) values(?,?,?,?,?,?,?,?,?)`)
+      .bind(player.id, panel, voterHash, accountId, ...scores).run();
   } catch (e) {
     if (String(e.message).includes('UNIQUE')) return json(409, { error: 'Already rated this player' });
     throw e;

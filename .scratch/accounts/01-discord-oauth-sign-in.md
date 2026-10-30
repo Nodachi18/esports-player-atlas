@@ -1,6 +1,6 @@
 # Discord OAuth sign-in and sessions
 
-Status: ready-for-human
+Status: ready-for-agent
 Source: navigation-overhaul spec §10, research at ../navigation-overhaul/research/01-discord-oauth.md
 Blocked by: 02, ../content-pages/05-terms-of-service.md
 
@@ -77,7 +77,7 @@ data out of D1.
 Flip `ACCOUNTS_ENABLED` in `public/app/main.js` when this lands: it turns on the spec's
 target-state visibility, so Rate starts prompting and Account appears.
 
-## Why it is ready-for-human
+## Why it was ready-for-human
 
 Step 0 can only be done by the account holder. The code is straightforward once the
 application and its secrets exist, and can be handed to an agent at that point.
@@ -96,6 +96,65 @@ and no more. That was the agreed bar.
 A visitor signs in with Discord **on the deployed origin, not just locally**, is recognised
 on return, and signs out again; an Account row exists keyed on the snowflake;
 `ACCOUNTS_ENABLED` is true and the navigation matrix behaves as spec §3 describes.
+
+## Tickets
+
+Broken down on 2026-10-29, and split from seven to eight when 07's tail — the flag flip and
+the deployed hand-check — was pulled out so the page rewrites could run beside 04. They live
+in
+[`01-discord-oauth-sign-in/`](01-discord-oauth-sign-in/) and land as **one branch, one PR**:
+`ACCOUNTS_ENABLED` stays `false` until the last one, so every intermediate state is invisible
+to a visitor — but the flush in 02 is not invisible, it deletes live rows on deploy, and it
+belongs in the same deploy as the thing that justifies it.
+
+| # | Ticket | Status | Blocked by |
+|---|---|---|---|
+| 01 | [Provision the Discord application](01-discord-oauth-sign-in/01-provision-the-discord-application.md) | **resolved 2026-10-29** | — |
+| 02 | [Accounts schema, the ratings FK, and the flush](01-discord-oauth-sign-in/02-accounts-schema-and-the-flush.md) | **resolved 2026-10-29** | — |
+| 03 | [The auth seams, and the tests that cover them](01-discord-oauth-sign-in/03-auth-seams-and-their-tests.md) | **resolved 2026-10-29** | — |
+| 04 | [The three auth routes](01-discord-oauth-sign-in/04-the-three-auth-routes.md) | **resolved 2026-10-30** | 01, 03 |
+| 05 | [Session-gated rating, and /api/auth/me](01-discord-oauth-sign-in/05-session-gated-rating.md) | **resolved 2026-10-30** | 02, 04 |
+| 06 | [The signed-in shell](01-discord-oauth-sign-in/06-the-signed-in-shell.md) | **resolved 2026-10-30** | 05 |
+| 07 | [Make the published promises true](01-discord-oauth-sign-in/07-make-the-published-promises-true.md) | **resolved 2026-10-30** | — |
+| 08 | [Turn accounts on](01-discord-oauth-sign-in/08-turn-accounts-on.md) | **flip committed; deployed walk outstanding** | 06, 07 |
+
+[02-token-kind-discriminator.md](02-token-kind-discriminator.md) merges first and separately.
+
+**Falling out of this set, with no ticket yet:** the Account page itself. `nav.js` renders
+it as `planned` for a signed-in visitor and `views.plannedPage` fills it, which is honest
+but empty. It is also the only page sign-in can return someone to that does not yet exist —
+see the note in [06](01-discord-oauth-sign-in/06-the-signed-in-shell.md).
+
+Decisions taken while breaking this down, none of them recoverable from the tickets alone:
+
+- **No anonymous ratings.** Rating is gated on the session, not merely prompted. Without
+  that, flipping `ACCOUNTS_ENABLED` buys a navigation change and leaves the published
+  medians exactly as attributable as they were.
+- **The legacy ratings are discarded**, which answers
+  [06](06-legacy-ratings-after-accounts.md) and closes it.
+- **30-day session, no revocation.** Accepted knowingly: the terms page says a blocked
+  account cannot sign in, and until [../moderation/02-session-revocation.md](../moderation/02-session-revocation.md)
+  lands that is true only at the next sign-in. A blocked-account check on the write routes
+  closes it later without touching the cookie.
+- **`ratings.account_id` now**, while the table is empty from the flush. This is the
+  cheapest that column will ever be, and terms rule 9 needs it.
+- **The avatar is stored and never rendered.** Rendering it means loading from
+  `cdn.discordapp.com`, which the privacy page says nothing here does.
+- **Rate limiting stays**, for amplification rather than guessing — there is no guessable
+  secret in this flow. Specified on the exchange-failure branch and **corrected on
+  2026-10-30 to sit in front of the exchange**, because counting after the outbound call
+  caps the response and not the amplification. A successful sign-in now spends budget;
+  the budget is 10/60s for that reason. Full reasoning in
+  [04](01-discord-oauth-sign-in/04-the-three-auth-routes.md).
+- **No snowflake age gate** at launch. The signal is free and recomputable at any time.
+- **The terms page knowingly overstates on blocking**, and that is left standing rather than
+  softened. Rules 8 and 9 say a blocked account cannot sign in and its ratings leave the
+  published scores; nothing in this repository can block an account, and
+  [../moderation/03-ban-accounts-and-moderate-ratings.md](../moderation/03-ban-accounts-and-moderate-ratings.md)
+  owns it. The rule was published ahead of its code on purpose. When 07 deleted the
+  spent tripwire it left a successor in its place, grepping `src/` for blocking so the
+  pages get re-read when that lands — **name-based, so moderation/03 can slip past it with
+  different column names.** Worth knowing when that ticket is written.
 
 ## Comments
 

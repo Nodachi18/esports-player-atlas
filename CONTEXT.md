@@ -14,13 +14,16 @@ A competitor who can be rated and has a public profile page. Players exist wheth
 anyone has claimed them.
 _Avoid_: Pro, athlete, subject
 
-**Account** (target-state):
-A registered identity that signs in. Distinct from a Player: an Account is who is using
-the app, a Player is who is being rated.
+**Account**:
+A registered identity that signs in, created by signing in with Discord and keyed on the
+Discord snowflake. Distinct from a Player: an Account is who is using the app, a Player is
+who is being rated.
 _Avoid_: User, login, profile
 
 **Role**:
-What an Account is permitted to do. Exactly one of community, professional or admin.
+What an Account is permitted to do. Exactly one of community, professional or admin — though
+only community and professional are columns on an Account; admin is still a shared key, which
+is what [accounts/07](.scratch/accounts/07-admin-accounts-replace-the-key.md) changes.
 _Avoid_: Permission, tier, level
 
 **Professional**:

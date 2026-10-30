@@ -38,6 +38,23 @@ export const submitRating = body => json('/api/ratings', body);
 
 export const getGames = () => request('/api/games');
 
+/**
+ * The session probe every page load makes. It answers 200 signed out as well as in, with
+ * `account: null`, so there is nothing here to catch — a visitor who has not signed in has
+ * not failed at anything. The cookie is HttpOnly and travels on its own; nothing is passed.
+ *
+ * There is no start() beside these two. The authorize step is a top-level redirect to
+ * discord.com, which an XHR cannot perform: that control is an anchor the browser follows,
+ * not a call this module makes.
+ */
+export const getSession = () => request('/api/auth/me');
+
+/**
+ * Signing out needs a route even though it stores nothing: the session cookie is HttpOnly,
+ * so the server that set it is the only thing that can unset it.
+ */
+export const logout = () => request('/api/auth/logout', { method: 'POST' });
+
 export const adminLogin = key => json('/api/admin/login', { key });
 export const getAdminStats = token => request('/api/admin/stats', { headers: { authorization: `Bearer ${token}` } });
 export const getAdminRatings = token => request('/api/admin/ratings', { headers: { authorization: `Bearer ${token}` } });
@@ -56,17 +73,3 @@ const playerPath = slug => `/api/admin/players/${encodeURIComponent(slug)}`;
 export const createPlayer = (token, body) => admin('/api/admin/players', 'POST', token, body);
 export const updatePlayer = (token, slug, body) => admin(playerPath(slug), 'PUT', token, body);
 export const deletePlayer = (token, slug) => admin(playerPath(slug), 'DELETE', token);
-
-/**
- * Browser-local voter identity, as today. Trivially resettable, which is precisely why
- * accounts are planned; until then it is what distinguishes one community rater from
- * another.
- */
-export function voterId() {
-  let id = localStorage.voterAtlas;
-  if (!id) {
-    id = crypto.randomUUID() + crypto.randomUUID();
-    localStorage.voterAtlas = id;
-  }
-  return id;
-}
